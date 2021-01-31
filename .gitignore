@@ -2,6 +2,7 @@
 QfO_release*
 **.gz
 *.sh
+*.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
