@@ -3,9 +3,9 @@ QfO_release*
 **.gz
 *.sh
 *.vscode
-bsc_cluster
-bsc_pc
-drive
+bsc_cluster/
+bsc_pc/
+drive/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
