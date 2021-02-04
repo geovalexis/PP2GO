@@ -14,12 +14,14 @@ __version__ = "0.1"
 
 __DESCRIPTION__ = ""
 
-def getUniprot2Taxid(uniprotIDs: set, prot_accession2taxid: os.path) -> Dict:
+
+def getUniprot2Taxid_NCBI(uniprotIDs: set, prot_accession2taxid: os.path) -> Dict:
     """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
     Args:
         uniprotIDs (set): set of genes to translate
         prot_accession2taxid (os.path): path to the prot.accession2taxid gzip compressed file 
                                         from the official NCBI ftp server.
+                                        See ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/ 
     """    
     uniprot2taxid = pd.read_table(prot_accession2taxid,
                             compression="gzip", 
@@ -29,13 +31,32 @@ def getUniprot2Taxid(uniprotIDs: set, prot_accession2taxid: os.path) -> Dict:
     uniprot2taxid = uniprot2taxid[uniprot2taxid["accession"].isin(uniprotIDs)] 
     # Check if all the uniprotIDs have a corresponding taxID
     if (uniprot2taxid["accession"].nunique() != len(uniprotIDs)):
-        #pdb.set_trace()
         print(f"The tax ID for following {len(uniprotIDs)-uniprot2taxid['accession'].nunique()} uniprotKB accession numbers couldn't be found:")
         #print(set.intersection(uniprotIDs, set(uniprot2taxid["accession"].unique())))
     return uniprot2taxid.set_index("accession")["taxid"].to_dict()
 
+def getUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path) -> Dict:
+    """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
+    Args:
+        uniprotIDs (set): set of genes to translate
+        idmapping (os.path): path to the idmapping_selected.tab gzip compressed file 
+                             from the official Uniprot ftp server.
+                             See ftp://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/idmapping/ 
+    """    
+    uniprot2taxid = pd.read_table(idmapping,
+                            compression="gzip", 
+                            names=["UniprotKB-AC", "GO", "NCBI-taxon"],
+                            usecols=["UniprotKB-AC", "NCBI-taxon"],
+                            dtype={"UniprotKB-AC":"string", "NCBI-taxon": "int32"})
+    uniprot2taxid = uniprot2taxid[uniprot2taxid["UniprotKB-AC"].isin(uniprotIDs)] 
+    # Check if all the uniprotIDs have a corresponding taxID
+    if (uniprot2taxid["UniprotKB-AC"].nunique() != len(uniprotIDs)):
+        print(f"The tax ID for following {len(uniprotIDs)-uniprot2taxid['UniprotKB-AC'].nunique()} uniprotKB accession numbers couldn't be found:")
+        #print(set.intersection(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
+    return uniprot2taxid.set_index("UniprotKB-AC")["NCBI-taxon"].to_dict()
 
-def assignTaxIDs(df: pd.DataFrame, onColumns: List[str], prot_accession2taxid: os.path):
+
+def assignTaxIDs(df: pd.DataFrame, onColumns: List[str], mapping_file: os.path):
     """[summary]
 
     Args:
@@ -50,17 +71,17 @@ def assignTaxIDs(df: pd.DataFrame, onColumns: List[str], prot_accession2taxid: o
     for column in onColumns:
         all_uniprotids.extend(df[column].unique())
     #pdb.set_trace()
-    uniproid2taxid = getUniprot2Taxid(set(all_uniprotids), prot_accession2taxid)
+    uniproid2taxid = getUniprot2Taxid_Uniprot(set(all_uniprotids), mapping_file)
     for column in onColumns:
         df[f"{column}_taxID"] = df[column].apply(lambda x:  uniproid2taxid.get(x, pd.NA)).astype(pd.Int64Dtype())
     return df
 
 def main():
     mtp_orthologs = "drive/MyDrive/TFG/QfO_input.tsv"
-    qfo_protAccession2taxid = "prot.accession2QfOtaxid.gz"
+    idmapping_qfp_subset = "idmapping_selected_qfo_subset.tab.gz"
 
     orthologs = pd.read_table(mtp_orthologs, names=["uniprotid1", "uniprotid2"], dtype={"uniprotid1":"string", "uniprotid2":"string"})
-    orthologs_withTaxIDs = assignTaxIDs(orthologs, onColumns=["uniprotid2"], prot_accession2taxid=qfo_protAccession2taxid)
+    orthologs_withTaxIDs = assignTaxIDs(orthologs, onColumns=["uniprotid1", "uniprotid2"], mapping_file=idmapping_qfp_subset)
     #orthologs_withTaxIDs = orthologs_withTaxIDs[["uniprotid1",  "uniprotid1_taxID", "uniprotid2", "uniprotid2_taxID"]] #Reorder columns
     print(orthologs_withTaxIDs.head())
     
