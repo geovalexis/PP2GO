@@ -46,9 +46,9 @@ def main():
 
     all_orthologs = pd.read_table(mtp_orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
     orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
-    orthologs_sp_withTaxIDs = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"]).orthologsDataFrame
-    orthologs_sp_withTaxIDs = orthologs_sp_withTaxIDs[["uniprotid1",  "uniprotid1_taxID", "uniprotid2", "uniprotid2_taxID"]] #Reorder columns
-    print(orthologs_sp_withTaxIDs.head())
+    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"])
+    pp_matrix = pp.computeCountsMatrix()
+    pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
     human_orthologs = ""
     genes2GOterms = None

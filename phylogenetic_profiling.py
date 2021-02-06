@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Dict
 import pandas as pd
-
+import numpy as np
 import aiohttp
 import asyncio
 import pdb
@@ -19,20 +19,23 @@ __DESCRIPTION__ = ""
 
 class PhylogeneticProfiling():
 
-    def __init__(self, orthologs: pd.DataFrame, onSpecies: list, reference_species: list = None):
+    def __init__(self, orthologs: pd.DataFrame, onSpecies: list = None, reference_species: list = None):
         self._orthologs = self.mapTaxIDs(orthologs, onColumns=orthologs.columns, dropUnmatched=True)
-        self._onSpecies = onSpecies
-        self._reference_species = reference_species
+        self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique())
+        self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._orthologs.columns[1]}_taxID"].unique()) 
 
     # NOTE: we cannot define multiple constructors in Python
     # def __init__(self, orthologs: pd.DataFrame, onProteins: list, reference_species: list, mapping_file: os.path):
     #     #TODO: we might need to compute a phylogentic profile given a list of proteins instead of a list of species
     #     raise NotImplementedError()
-
     
     @property
     def orthologsDataFrame(self):
-        return self._orthologs
+        logging.info("Filtering orthologs dataset.")
+        return self._orthologs[
+            self._orthologs[f"{self._orthologs.columns[0]}_taxID"].isin(self._onSpecies)
+            &
+            self._orthologs[f"{self._orthologs.columns[1]}_taxID"].isin(self._reference_species)]
     
     @property
     def referenceSpecies(self):
@@ -65,10 +68,42 @@ class PhylogeneticProfiling():
         for column in onColumns:
             df[f"{column}_taxID"] = df[column].apply(lambda x:  uniproid2taxid.get(x, pd.NA)).astype(pd.Int64Dtype())
         if dropUnmatched: 
-            df.dropna()
+            df.dropna(inplace=True)
         return df
 
+    def computeCountsMatrix(self):
+        orthologs_dataset = self.orthologsDataFrame
+        proteins = orthologs_dataset[f"{orthologs_dataset.columns[0]}"].unique()
+        taxa = self.referenceSpecies
+        matrix = {}
+        logging.debug(f"Total number of unique proteins: {len(proteins)}")
+        logging.info("Computing Phylogenetic Profiling matrix...")
+        for tax in taxa:
+            logging.debug(f"Searching orthologs for taxon {tax}...")
+            tax_orthologs = orthologs_dataset[orthologs_dataset[f"{orthologs_dataset.columns[1]}_taxID"]==tax]
+            if not tax_orthologs.empty:
+                matrix[tax] = []
+                orthologs_found = 0
+                for protein in proteins:
+                    query = tax_orthologs[f"{orthologs_dataset.columns[1]}"].where(tax_orthologs[f"{orthologs_dataset.columns[0]}"]==protein).dropna() 
+                    if query.empty:
+                        matrix[tax].append(0)
+                    else:
+                        matrix[tax].append(query.count()) #Replace count() with tolist() if want to save the proteins IDs instead of just the count
+                        orthologs_found+=1
+                logging.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
+            else:
+                logging.warning(f"No ortholog has been found for taxon {tax}.")
+        logging.info(f"...found orthologs in {len(matrix)} out of {len(taxa)} taxons.")
+        matrix_df = pd.DataFrame(matrix, index=proteins)
+        logging.info(f"Final shape of the matrix: {matrix_df.shape}")
+        return matrix_df
 
+    
+    def computePresenceAbscenseMatrix(self):
+        return self.computeCountsMatrix().applymap(lambda x: 1 if x >= 1 else 0)
+
+    
 
 class TaxaMapping():
 
