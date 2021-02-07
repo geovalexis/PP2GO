@@ -34,7 +34,7 @@ class GO_EvidenceCodes(Enum):
 
 class GeneOntology():
 
-    def __init__(self, gaf_file_path: os.path, hasHeader: bool, obo_file_path: os.path):
+    def __init__(self, obo_file_path: os.path, gaf_file_path: os.path, hasHeader: bool):
         self.go_annotations = pd.read_table(gaf_file_path, 
                              header=None, 
                              names=["DB", "DB_Object_ID", "DB_Object_Symbol", "Qualifier", "GO_ID", "DB:Reference", "Evidence Code", "With (or) From", "Aspect", "DB_Object_Name", "DB_Object_Synonym", "DB_Object_Type", "Taxon and Interacting taxon", "Date","Assigned_By", "Annotation_Extension", "Gene_Product_Form_ID"],
@@ -91,7 +91,7 @@ class GeneOntology():
         return unprotids2GOterms_withParents
 
 if __name__ == "__main__":
-    goa_test = GeneOntology("./goa_uniprot_qfo.gaf.gz", hasHeader=False, obo_file_path="./go.obo")
+    goa_test = GeneOntology(obo_file_path="./go.obo", gaf_file_path="./goa_uniprot_qfo.gaf.gz", hasHeader=False)
     goa_test.filterByAspects([GO_Aspects.BiologicalProcess.value]).filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value)
     proteins2GOterms = goa_test.assignGOterms(["A5PKW4", "O43292", "P08183"], include_parents=True)
     print(proteins2GOterms)

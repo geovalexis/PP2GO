@@ -56,7 +56,7 @@ def main():
     #pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
     # Assign GO terms
-    goa = GeneOntology(gaf_file_path="./goa_uniprot_qfo.gaf.gz", hasHeader=False, obo_file_path="./go.obo")
+    goa = GeneOntology(obo_file_path="./go.obo", gaf_file_path="./goa_uniprot_qfo.gaf.gz", hasHeader=False)
     goa.filterByAspects([GO_Aspects.BiologicalProcess.value])
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"])
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True)
