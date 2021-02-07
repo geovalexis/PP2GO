@@ -87,7 +87,7 @@ class GeneOntology():
             go_terms_parents = set()
             for go_term in go_terms:
                 go_terms_parents.update(go_terms2parents[go_term])
-            unprotids2GOterms_withParents[uniprotid] = np.hstack([go_terms,*go_terms_parents])
+            unprotids2GOterms_withParents[uniprotid] = np.hstack([*go_terms,*go_terms_parents])
         return unprotids2GOterms_withParents
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 
 from typing import Dict, List
 import pandas as pd
+import numpy as np
 import os
 import logging
 
@@ -60,9 +61,11 @@ def main():
     goa.filterByAspects([GO_Aspects.BiologicalProcess.value])
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"])
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True)
-    pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, pd.NA))
+    pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
     #pdb.set_trace()
     print(pp_matrix) 
+
+    pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
     pp_matrix.to_csv("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", sep="\t", header=True, index=True)
 
     # TODO: train_model()
