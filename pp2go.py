@@ -52,21 +52,20 @@ def main():
     
     # Create Phylogenetic Profiling matrix
     pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"])
-    pp_matrix = pp.computeCountsMatrix()
+    pp_matrix = pp.computePresenceAbscenseMatrix()
     #pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
     # Assign GO terms
-    goa = GeneOntology("goa_uniprot_qfo.gaf.gz", hasHeader=False)
+    goa = GeneOntology(gaf_file_path="./goa_uniprot_qfo.gaf.gz", hasHeader=False, obo_file_path="./go.obo")
     goa.filterByAspects([GO_Aspects.BiologicalProcess.value])
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"])
-    proteins2GOterms = goa.assignGOterms(pp_matrix.index)
+    proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True)
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, pd.NA))
-    pdb.set_trace()
-    #print(pp_matrix) 
-    
+    #pdb.set_trace()
+    print(pp_matrix) 
+    pp_matrix.to_csv("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", sep="\t", header=True, index=True)
+
     # TODO: train_model()
-    genes2GOterms = None
-    pass
 
 if __name__ == "__main__":
     main()
