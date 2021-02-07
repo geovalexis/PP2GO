@@ -11,6 +11,7 @@ import pdb
 import sys
 
 from phylogenetic_profiling import PhylogeneticProfiling
+from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -34,6 +35,8 @@ def filterBySwissProt(df: pd.DataFrame, onColumns: List[str], swiss_prot_ids: os
         df = df[df[column].isin(swiss_prot_proteins)]
     return df
 
+
+
 def main():
     logging.basicConfig(
         level=logging.DEBUG,
@@ -41,17 +44,26 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
         stream=sys.stdout
     )    
-
     mtp_orthologs = "drive/MyDrive/TFG/QfO_input.tsv"
 
+    # Define orthologs dataset
     all_orthologs = pd.read_table(mtp_orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
-    #orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
-    pp = PhylogeneticProfiling(all_orthologs, onSpecies=["9606"])
+    orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
+    
+    # Create Phylogenetic Profiling matrix
+    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"])
     pp_matrix = pp.computeCountsMatrix()
-    print(pp_matrix)
     #pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
-    human_orthologs = ""
+    # Assign GO terms
+    goa = GeneOntology("goa_uniprot_qfo.gaf.gz", hasHeader=False)
+    goa.filterByAspects([GO_Aspects.BiologicalProcess.value])
+    goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"])
+    proteins2GOterms = goa.assignGOterms(pp_matrix.index)
+    pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, pd.NA))
+    pdb.set_trace()
+    #print(pp_matrix) 
+    
     # TODO: train_model()
     genes2GOterms = None
     pass

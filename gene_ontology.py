@@ -3,7 +3,7 @@ import logging
 from typing import Dict
 import pandas as pd
 import numpy as np
-from enum import Enum
+from enum import Enum, unique
 import pdb
 import sys
 
@@ -13,10 +13,19 @@ __email__ = "geovanny.risco@bsc.es"
 __version__ = "0.1"
 
 
-class GOAspects(Enum):
+class GO_Aspects(Enum):
     BiologicalProcess = "P"
     CellularComponent = "C"
     MolecularFunction = "F"
+
+class GO_EvidenceCodes(Enum):
+    """ See http://geneontology.org/docs/guide-go-evidence-codes/ """
+    Experimental = ["EXP", "IMP", "HMP", "IGI", "HGI", "IPI", "IEP", "HEP", "IDA", "HDA"]
+    PhylogeneticallyInferred = ["IBA", "IBD", "IKR", "IRD"]
+    ComputionalAnalysis = ["ISS", "ISO", "ISA", "ISM", "IGC", "RCA"]
+    AuthorStatements = ["TAS", "NAS"]
+    CuratorStatements = ["IC", "ND"]
+    ElectronicAnnotations = ["IEA"]
 
 class GeneOntology():
 
@@ -32,16 +41,26 @@ class GeneOntology():
     def goaDataFrame(self):
         return self.go_annotations
 
-    def filterByAspect(self, aspect: GOAspects):
-        self.go_annotations = self.go_annotations[self.go_annotations["Aspect"]==aspect.value]
+    def filterByAspects(self, aspects: list):
+        logging.info("Filtering GO terms by aspects...")
+        self.go_annotations = self.go_annotations[self.go_annotations["Aspect"].isin(aspects)]
         return self
 
+    def filterByEvidenceCodes(self, evidence_codes: list):
+        logging.info("Filtering GO terms by evidence codes...")
+        self.go_annotations = self.go_annotations[self.go_annotations["Evidence Code"].isin(evidence_codes)]
+        return self
 
-
+    def assignGOterms(self, uniprotids: list) -> dict:
+        uniprotids = set(uniprotids)
+        logging.info(f"Assigning GO terms to {len(uniprotids)} proteins...")
+        goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]
+        uniprotids2GOterms = goa_filteredByUniprotids.groupby("DB_Object_ID")["GO_ID"].apply(np.unique).to_dict()
+        if len(uniprotids2GOterms) != len(uniprotids):
+            logging.warning(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins doesn't have any match.")
+        return uniprotids2GOterms
 
 if __name__ == "__main__":
-    test = GeneOntology("goa_uniprot_qfo.gaf.gz", hasHeader=False)
-    test.filterByAspect(GOAspects.BiologicalProcess)
-    
-    print(test.goaDataFrame)
-      
+    goa_test = GeneOntology("goa_uniprot_qfo.gaf.gz", hasHeader=False)
+    goa_test.filterByAspects([GO_Aspects.BiologicalProcess.value]).filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value)
+    print(goa_test.assignGOterms(["A5PKW4", "O43292"]))
