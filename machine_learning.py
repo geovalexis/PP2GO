@@ -19,12 +19,13 @@ class ML():
 
     @staticmethod
     def applyOneHotEncoding(column: pd.Series):
-        pdb.set_trace()
-        return pd.get_dummies(column, 
+        return pd.get_dummies(column.explode(), 
                             prefix="", prefix_sep=""
                             ).reset_index().groupby("index").first()
 
 if __name__ == "__main__":
-    pp_matrix = pd.read_table("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", header=0, index_col=0)
-    pp_matrix_training = pp_matrix.dropna(subset=["GO_IDs"])
+    pp_matrix = pd.read_table("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", 
+                                header=0, index_col=0,  
+                                converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
+    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0]
     print(ML(pp_matrix_training).getLabels)
