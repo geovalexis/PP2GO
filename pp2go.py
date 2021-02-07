@@ -45,14 +45,15 @@ def main():
     mtp_orthologs = "drive/MyDrive/TFG/QfO_input.tsv"
 
     all_orthologs = pd.read_table(mtp_orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
-    orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
-    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"])
+    #orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
+    pp = PhylogeneticProfiling(all_orthologs, onSpecies=["9606"])
     pp_matrix = pp.computeCountsMatrix()
-    pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
+    print(pp_matrix)
+    #pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
     human_orthologs = ""
-    genes2GOterms = None
     # TODO: train_model()
+    genes2GOterms = None
     pass
 
 if __name__ == "__main__":
