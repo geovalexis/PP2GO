@@ -34,9 +34,7 @@ def filterBySwissProt(df: pd.DataFrame, onColumns: List[str], swiss_prot_ids: os
     for column in onColumns:
         swiss_prot_proteins = intersectSwissProt(set(df[column].unique()), swiss_prot_ids)
         df = df[df[column].isin(swiss_prot_proteins)]
-    return df
-
-
+    return df    
 
 def main():
     logging.basicConfig(
@@ -63,12 +61,13 @@ def main():
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True)
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
     #pdb.set_trace()
-    print(pp_matrix) 
+    
 
     pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
     pp_matrix.to_csv("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", sep="\t", header=True, index=True)
-
+    print(pp_matrix) 
     # TODO: train_model()
+    
 
 if __name__ == "__main__":
     main()
