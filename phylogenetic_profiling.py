@@ -108,7 +108,7 @@ class PhylogeneticProfiling():
 class TaxaMapping():
 
     @staticmethod
-    def mapUniprot2Taxid_NCBI(uniprotIDs: set, prot_accession2taxid: os.path = "prot.accession2QfOtaxid.gz") -> Dict:
+    def mapUniprot2Taxid_NCBI(uniprotIDs: set, prot_accession2taxid: os.path = "./data/prot.accession2QfOtaxid.gz") -> Dict:
         """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
         Args:
             uniprotIDs (set): set of genes to translate
@@ -130,7 +130,7 @@ class TaxaMapping():
 
     
     @staticmethod
-    def mapUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path = "idmapping_selected_qfo_subset.tab.gz") -> Dict: 
+    def mapUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path = "./data/idmapping_selected_qfo_subset.tab.gz") -> Dict: 
         """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
         Args:
             uniprotIDs (set): set of genes to translate
