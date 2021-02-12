@@ -59,7 +59,8 @@ class GeneOntology():
 
     def assignGOterms(self, uniprotids: list, include_parents: bool = False) -> dict:
         uniprotids = set(uniprotids)
-        logging.info(f"Assigning GO terms to {len(uniprotids)} proteins...")
+        logging.info(f"Assigning GO terms...")
+        logging.info(f"{len(uniprotids)} proteins in total...")
         goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]
         uniprotids2GOterms = goa_filteredByUniprotids.groupby("DB_Object_ID")["GO_ID"].apply(np.unique).to_dict()
         if len(uniprotids2GOterms) != len(uniprotids):

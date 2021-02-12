@@ -1,42 +1,122 @@
+# Basic imports
+import logging
+import sys
 import pdb
-from numpy.lib.arraysetops import setdiff1d
 import pandas as pd
 import numpy as np
 
+# Scikit learn utils 
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.multioutput import ClassifierChain
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import cross_validate
+
+# Models that support multilabel by default
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
+
+# Models that do not inherently support multilabel (A layer like OneVsRestClassifier must be used)
+from sklearn.svm import SVC
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.naive_bayes import MultinomialNB
+
+
+from helpers.helper_functions import filterOutByFrequency
 
 class ML():
 
+    mlb = MultiLabelBinarizer()
+
     def __init__(self, phylogenetic_profile_matrix: pd.DataFrame):
         self.training_matrix_X = phylogenetic_profile_matrix.iloc[:, :-1] #values
-        self.training_matrix_Y = self.applyOneHotEncoding(phylogenetic_profile_matrix[phylogenetic_profile_matrix.columns[-1]]) #labels
+        self.training_matrix_Y = pd.DataFrame(self.mlb.fit_transform(phylogenetic_profile_matrix[phylogenetic_profile_matrix.columns[-1]]), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
+        self.models_available = self.create_baseline_classifiers()
 
     @property
-    def getLabels(self):
+    def labels(self):
         return self.training_matrix_Y
     
     @property
-    def getValues(self):
+    def features(self):
         return self.training_matrix_X
 
-    @staticmethod
-    def applyOneHotEncoding(column: pd.Series):
-        return pd.get_dummies(column.explode(), 
-                            prefix="", prefix_sep=""
-                            ).reset_index().groupby("index").first()
+    @property
+    def modelsAvailable(self):
+        return self.models_available
 
-def filterOutByFrequency(GO_ids: pd.Series, min_threshold: int = None, max_threshold: int = None):
-    go_ids_counts = GO_ids.explode().value_counts()
-    min_threshold = min_threshold if min_threshold else go_ids_counts.max()
-    max_threshold = max_threshold if max_threshold else go_ids_counts.min()
-    out_values = go_ids_counts[(go_ids_counts<min_threshold) | (go_ids_counts>max_threshold)].index
-    GO_ids_filtered = GO_ids.apply(lambda x, y=out_values: np.setdiff1d(x, y)).copy()
-    return GO_ids_filtered
+    # From https://towardsdatascience.com/simple-way-to-find-a-suitable-algorithm-for-your-data-in-scikit-learn-python-9a9710c7c0fe
+    @staticmethod
+    def create_baseline_classifiers(seed=8):
+        """Create a list of baseline classifiers.
+        
+        Parameters
+        ----------
+        seed: (optional) An integer to set seed for reproducibility
+        Returns
+        -------
+        A list containing tuple of model's name and object.
+        """
+        models = {}
+        # Inherently multilabel
+        models['Dummy'] = DummyClassifier(random_state=seed, strategy='prior')
+        models['RandomForest'] = RandomForestClassifier(random_state=seed)
+        models['KNN'] = KNeighborsClassifier()
+        models['NeuralNetwork'] = MLPClassifier(random_state=seed)
+
+        # No support for multilabel unless using OneVSRestClassifier or ClassifierChain
+        models['SupportVectorMachine'] = OneVsRestClassifier(SVC(random_state=seed, probability=True), n_jobs=-1)
+        models['GradientBoosting'] = OneVsRestClassifier(GradientBoostingClassifier(random_state=seed), n_jobs=-1)
+        models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=-1)
+        return models
+
+    def assess_models(self, cv=5, metrics=("accuracy", "f1_macro")):
+        """Provide summary of cross validation results for models.
+        
+        Parameters
+        ----------
+        X: A pandas DataFrame containing feature matrix
+        y: A pandas Series containing target vector
+        models: A list of models to train
+        cv: (optional) An integer to set number of folds in cross-validation
+        metrics: (optional) A list of scoring metrics or a string for a metric
+        Returns
+        -------
+        A pandas DataFrame containing summary of baseline models' performance.
+        """
+        logging.debug(f"The following models are available: {', '.join(self.models_available.keys())}")
+        logging.info("Assessing models...")
+        summary = pd.DataFrame()
+        for name, model in self.models_available.items():
+            logging.debug(f"Crossvalidating {name} model...")
+            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics))
+            mean = result.mean().rename('{}_mean'.format)
+            std = result.std().rename('{}_std'.format)
+            summary[name] = pd.concat([mean, std], axis=0)
+        return summary.sort_index()
+
+    def train_model(self, model_name: str):
+        model = self.models_available.get(model_name)
+        if model: return model.fit()
+        else:
+            raise Exception("Specified model is not available")
     
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] -- %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stdout
+    ) 
     pp_matrix = pd.read_table("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", 
                                 header=0, index_col=0,  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
     pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0]
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=100, max_threshold=1000))
-    print(ML(pp_matrix_training).getLabels)
+    ml = ML(pp_matrix_training)
+    assess_summary = ml.assess_models()
+    logging.info(f"Assess summary:\n {assess_summary}")

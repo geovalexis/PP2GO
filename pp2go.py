@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from machine_learning import ML
 from typing import Dict, List
 import pandas as pd
 import numpy as np
@@ -14,6 +15,7 @@ import sys
 
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
+from helpers.helper_functions import filterOutByFrequency
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -43,8 +45,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gaf-file", required=True, type=str, help="Gene Ontology annotation file.")
     parser.add_argument("--go-obo-file", required=False, default="./data/go.obo", type=str, help="Core ontology in OBO format.")
     parser.add_argument("--output", required=True, type=str, help="Output file.")
+    parser.add_argument("--proteome-species", nargs="*", type=int, default=[9606], help="Space separated list of species whose proteins will be used for the Phylogenetic Profiling Matrix. Human proteome will be taken by default.")
+    parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
+    parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
+    parser.add_argument("--save-pp-matrix", required=False, default=False, action="store_true", help="If you want to save the profiling matrix in case something went wrong.")
     parser.add_argument("-v","--verbose", required=False, default=False, action="store_true", help="Verbose logging.")
-    #parser.add_argument("--go-aspects", required=False, type=str.upper, help="GO aspect/ontology", choices=["P", "C", "F"]) #TODO: allow multiple 
     #TODO: add SPECIES, EVIDENCE CODES, Pres-Abs/Counts arguments
     return parser.parse_args()
 
@@ -63,7 +68,7 @@ def main():
     orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
     
     # Compute Phylogenetic Profiling matrix
-    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=["9606"])
+    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=args.proteome_species, reference_species=args.reference_species)
     pp_matrix = pp.computeCountsMatrix()
     #pp_matrix.to_csv("drive/MyDrive/TFG/orthologs_counts_matrix_v2.tsv", sep="\t", index=True, header=True)
     
@@ -73,15 +78,19 @@ def main():
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"])
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True)
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
-    #pdb.set_trace()
-
-    # Save matrix and GO terms
-    pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
-    pp_matrix.to_csv(args.output, sep="\t", header=True, index=True)
-    print(pp_matrix) 
     
-    # TODO: train_model()
+    # Show and save matrix (if apply)
+    logging.info(f"PROFILING MATRIX...\n{pp_matrix}")
+    if args.save_pp_matrix:
+        pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
+        pp_matrix.to_csv(args.output, sep="\t", header=True, index=True)
     
+    # Performe Machine Learning 
+    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must be labeled
+    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=100, max_threshold=1000))
+    ml = ML(pp_matrix_training)
+    assess_summary = ml.assess_models()
+    logging.info(f"Assess summary:\n {assess_summary}")
 
 if __name__ == "__main__":
     main()

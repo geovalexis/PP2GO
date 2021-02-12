@@ -19,7 +19,7 @@ __DESCRIPTION__ = ""
 
 class PhylogeneticProfiling():
 
-    def __init__(self, orthologs: pd.DataFrame, onSpecies: list = None, reference_species: list = None):
+    def __init__(self, orthologs: pd.DataFrame, onSpecies: list = [], reference_species: list = []):
         self._orthologs = self.mapTaxIDs(orthologs, onColumns=orthologs.columns, dropUnmatched=True)
         self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique())
         self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._orthologs.columns[1]}_taxID"].unique()) 
