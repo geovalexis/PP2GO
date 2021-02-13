@@ -39,7 +39,7 @@ class GeneOntology():
                              header=None, 
                              names=["DB", "DB_Object_ID", "DB_Object_Symbol", "Qualifier", "GO_ID", "DB:Reference", "Evidence Code", "With (or) From", "Aspect", "DB_Object_Name", "DB_Object_Synonym", "DB_Object_Type", "Taxon and Interacting taxon", "Date","Assigned_By", "Annotation_Extension", "Gene_Product_Form_ID"],
                              dtype="string",
-                             skiprows=12 if hasHeader else 0, 
+                             skiprows=12 if hasHeader else 0, #TODO: drop this option and make the gaf-file always have header
                              compression="gzip")
         self.go = obo_parser.GODag(obo_file_path)
     
@@ -64,7 +64,7 @@ class GeneOntology():
         goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]
         uniprotids2GOterms = goa_filteredByUniprotids.groupby("DB_Object_ID")["GO_ID"].apply(np.unique).to_dict()
         if len(uniprotids2GOterms) != len(uniprotids):
-            logging.warning(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins doesn't have any match.")
+            logging.warning(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins doesn't have any GO term.")
         if include_parents:
             uniprotids2GOterms = self.concatenateParents(uniprotids2GOterms)
         return uniprotids2GOterms

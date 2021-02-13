@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 from typing import Dict, List
-import pandas as pd
-import numpy as np
 import os
 import logging
 import argparse
-
-import aiohttp
-import asyncio
 import pdb
 import sys
+
+import pandas as pd
+import numpy as np
 
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
@@ -46,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--proteome-species", nargs="*", type=int, default=[9606], help="Space separated list of species whose proteins will be used for the Phylogenetic Profiling Matrix. Human proteome will be taken by default.")
     parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
     parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
-    parser.add_argument("--run-ml", required=False, default=False, action="store_true", help="Performed the Machine Learning Algorithm.")
+    parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
     parser.add_argument("-v","--verbose", required=False, default=False, action="store_true", help="Verbose logging.")
     return parser.parse_args()
 
@@ -76,8 +74,8 @@ def main():
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
     
     # Performe Machine Learning algorithm (if apply)
-    if args.run_ml:
-        runML(pp_matrix, min=100, max=1000)
+    if args.ml_results:
+        runML(pp_matrix, min=100, max=1000, results_file=args.ml_results) 
 
     # Save PP matrix (if apply)
     if args.pp_matrix:
@@ -91,6 +89,6 @@ if __name__ == "__main__":
 
 #### TESTS ####
 #   
-#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/pp_matrix_counts_MTP_last.tab --run-ml -v
+#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab -v
 #
-#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/pp_matrix_counts_PANTHER_14.1_all.tab --run-ml -v
+#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab -v

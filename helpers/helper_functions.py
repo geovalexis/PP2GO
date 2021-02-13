@@ -1,3 +1,4 @@
+import pdb
 import pandas as pd
 import numpy as np
 
@@ -13,6 +14,8 @@ def filterOutByFrequency(column: pd.Series, min_threshold: int = None, max_thres
         column_filtered (pd.Series): copy of the Series with all the elements beyond the thresholds filtered out.
     """
     elements_counts = column.explode().value_counts()
+    print(f"The element with the maximum number of ocurrences is {elements_counts.idxmax()} with {elements_counts.max()} ocurrences.", flush=True)
+    print(f"The element with the maximum number of ocurrences is {elements_counts.idxmin()} with {elements_counts.min()} ocurrences.", flush=True)
     min_threshold = min_threshold if min_threshold else elements_counts.max()
     max_threshold = max_threshold if max_threshold else elements_counts.min()
     out_elements = elements_counts[(elements_counts<min_threshold) | (elements_counts>max_threshold)].index

@@ -1,6 +1,8 @@
 # My ignores
 QfO_release*
 **.gz
+**.raw
+**.logs
 *.sh
 *.vscode
 bsc_cluster/
