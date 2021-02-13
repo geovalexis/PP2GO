@@ -2,8 +2,10 @@
 import logging
 import sys
 import pdb
+import argparse
 import pandas as pd
 import numpy as np
+
 
 # Scikit learn utils 
 from sklearn.model_selection import train_test_split
@@ -105,18 +107,32 @@ class ML():
             raise Exception("Specified model is not available")
     
 
+def runML(pp_matrix: pd.DataFrame, min, max):
+    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must be labeled
+    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max))
+    ml = ML(pp_matrix_training)
+    assess_summary = ml.assess_models()
+    logging.info(f"Assess summary:\n {assess_summary}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Perform only Machine Learning", epilog="Enjoy!")
+    parser.add_argument("--pp-matrix", type=str, required=False, default="drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", help="Phylogenetic Profiling matrix")
+    parser.add_argument("--min-gos", type=int, required=False, default=100, help="Min number of GO terms' ocurrences,")
+    parser.add_argument("--max-gos", type=int, required=False, default=1000, help="Max number of GO terms' ocurrences,")
+    return parser.parse_args()
+
 if __name__ == "__main__":
+    args = parse_args()
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] -- %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         stream=sys.stdout
     ) 
-    pp_matrix = pd.read_table("drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", 
+    pp_matrix = pd.read_table(args.pp_matrix, 
                                 header=0, index_col=0,  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
-    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0]
-    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=100, max_threshold=1000))
-    ml = ML(pp_matrix_training)
-    assess_summary = ml.assess_models()
-    logging.info(f"Assess summary:\n {assess_summary}")
+    runML(pp_matrix, min=args.min_gos, max=args.max_gos)
+
+
