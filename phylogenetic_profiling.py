@@ -7,7 +7,7 @@ import aiohttp
 import asyncio
 import pdb
 import sys
-
+from joblib import Parallel, delayed, parallel
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -71,37 +71,41 @@ class PhylogeneticProfiling():
             df.dropna(inplace=True)
         return df
 
+    def computePresenceAbscenseMatrix(self):
+        return self.computeCountsMatrix().applymap(lambda x: 1 if x >= 1 else 0)
+
     def computeCountsMatrix(self):
         orthologs_dataset = self.orthologsDataFrame
         proteins = orthologs_dataset[f"{orthologs_dataset.columns[0]}"].unique()
         taxa = self.referenceSpecies
-        matrix = {}
         logging.debug(f"Total number of unique proteins: {len(proteins)}")
         logging.info("Computing Phylogenetic Profiling matrix...")
-        for tax in taxa:
-            logging.debug(f"Searching orthologs for taxon {tax}...")
-            tax_orthologs = orthologs_dataset[orthologs_dataset[f"{orthologs_dataset.columns[1]}_taxID"]==tax]
-            if not tax_orthologs.empty:
-                matrix[tax] = []
-                orthologs_found = 0
-                for protein in proteins:
-                    query = tax_orthologs[f"{orthologs_dataset.columns[1]}"].where(tax_orthologs[f"{orthologs_dataset.columns[0]}"]==protein).dropna() 
-                    if query.empty:
-                        matrix[tax].append(0)
-                    else:
-                        matrix[tax].append(query.count()) #Replace count() with tolist() if want to save the proteins IDs instead of just the count
-                        orthologs_found+=1
-                logging.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
-            else:
-                logging.warning(f"No ortholog has been found for taxon {tax}.")
+        with Parallel(n_jobs=-1) as run_in_parallel:
+            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, orthologs_dataset, proteins) for tax in taxa)))
         logging.info(f"...found orthologs in {len(matrix)} out of {len(taxa)} taxons.")
         matrix_df = pd.DataFrame(matrix, index=proteins)
         logging.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
-
     
-    def computePresenceAbscenseMatrix(self):
-        return self.computeCountsMatrix().applymap(lambda x: 1 if x >= 1 else 0)
+    @staticmethod
+    def searchOrtholog(tax, orthologs_dataset, proteins):
+        logging.debug(f"Searching orthologs for taxon {tax}...")
+        tax_orthologs = orthologs_dataset[orthologs_dataset[f"{orthologs_dataset.columns[1]}_taxID"]==tax]
+        if not tax_orthologs.empty:
+            ort_counts = []
+            orthologs_found = 0
+            for protein in proteins:
+                query = tax_orthologs[f"{orthologs_dataset.columns[1]}"].where(tax_orthologs[f"{orthologs_dataset.columns[0]}"]==protein).dropna() 
+                if query.empty:
+                    ort_counts.append(0)
+                else:
+                    ort_counts.append(query.count()) #Replace count() with tolist() if want to save the proteins IDs instead of just the count
+                    orthologs_found+=1
+            logging.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
+            return (tax, ort_counts)
+        else:
+            logging.warning(f"No ortholog has been found for taxon {tax}.")
+
 
     
 

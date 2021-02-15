@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import numpy as np
 
+#For multiprocessing
+from multiprocessing import cpu_count
 
 # Scikit learn utils 
 from sklearn.model_selection import train_test_split
@@ -97,7 +99,7 @@ class ML():
         summary = pd.DataFrame()
         for name, model in self.models_available.items():
             logging.info(f"Crossvalidating {name} model...")
-            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=-1))
+            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if cpu_count()>cv else -2))
             mean = result.mean().rename('{}_mean'.format)
             std = result.std().rename('{}_std'.format)
             summary[name] = pd.concat([mean, std], axis=0)
