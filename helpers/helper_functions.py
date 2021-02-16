@@ -1,4 +1,9 @@
+import os
+import requests
+from typing import List
+
 import pdb
+
 import pandas as pd
 import numpy as np
 
@@ -21,3 +26,18 @@ def filterOutByFrequency(column: pd.Series, min_threshold: int = None, max_thres
     out_elements = elements_counts[(elements_counts<min_threshold) | (elements_counts>max_threshold)].index
     column_filtered = column.apply(lambda x, y=out_elements: np.setdiff1d(x, y)).copy()
     return column_filtered
+
+
+def downloadSwissProtIds() -> list:
+    # Documentation in https://www.uniprot.org/help/api_queries
+    endpoint = "https://www.uniprot.org/uniprot/"
+    params = {
+        'query': "reviewed:yes",
+        'format': 'list'
+    }
+    response = requests.get(endpoint, params=params)
+    if response.ok:
+        return response.text.splitlines()
+    else:
+        response.raise_for_status()
+    

@@ -4,12 +4,11 @@ import logging
 from typing import Dict
 from enum import Enum
 
+import wget
 import pandas as pd
 import numpy as np
 
 from goatools import obo_parser
-
-
 
 
 
@@ -34,14 +33,26 @@ class GO_EvidenceCodes(Enum):
 
 class GeneOntology():
 
-    def __init__(self, obo_file_path: os.path, gaf_file_path: os.path, hasHeader: bool):
+    def __init__(self, gaf_file_path: os.path, obo_file_path: os.path = None):
         self.go_annotations = pd.read_table(gaf_file_path, 
                              header=None, 
                              names=["DB", "DB_Object_ID", "DB_Object_Symbol", "Qualifier", "GO_ID", "DB:Reference", "Evidence Code", "With (or) From", "Aspect", "DB_Object_Name", "DB_Object_Synonym", "DB_Object_Type", "Taxon and Interacting taxon", "Date","Assigned_By", "Annotation_Extension", "Gene_Product_Form_ID"],
                              dtype="string",
-                             skiprows=12 if hasHeader else 0, #TODO: drop this option and make the gaf-file always have header
+                             comment="!",
                              compression="gzip")
-        self.go = obo_parser.GODag(obo_file_path)
+        self.go = obo_parser.GODag(obo_file_path if obo_file_path else self.retrieveOBOFile()) 
+    
+    @staticmethod
+    def retrieveOBOFile():
+        go_obo_url = 'http://purl.obolibrary.org/obo/go/go.obo'
+        data_folder = os.getcwd() + '/data'
+        go_obo_filepath = data_folder+'/go.obo'
+        if not os.path.isdir(data_folder):
+            os.mkdir(data_folder)
+        if not os.path.isfile(go_obo_filepath):
+            logging.info("go.obo not found. Downloading last Gene Ontology in OBO format...")
+            wget.download(go_obo_url, go_obo_filepath)
+        return go_obo_filepath
     
     @property
     def goaDataFrame(self):
@@ -93,7 +104,7 @@ class GeneOntology():
 
 
 if __name__ == "__main__":
-    goa_test = GeneOntology(obo_file_path="./go.obo", gaf_file_path="./goa_uniprot_qfo.gaf.gz", hasHeader=False)
+    goa_test = GeneOntology(gaf_file_path="./data/goa_uniprot_qfo.gaf.gz")
     goa_test.filterByAspects([GO_Aspects.BiologicalProcess.value]).filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value)
     proteins2GOterms = goa_test.assignGOterms(["A5PKW4", "O43292", "P08183"], include_parents=True)
     print(proteins2GOterms)

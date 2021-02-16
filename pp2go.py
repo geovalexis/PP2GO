@@ -12,6 +12,7 @@ import numpy as np
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
 from machine_learning import runML
+from helpers.helper_functions import downloadSwissProtIds
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -29,17 +30,30 @@ def intersectSwissProt(uniprotIDS: set, swiss_prot_ids: os.path):
     sp_ids_exploded = [item for packed_elements in sp_ids for item in packed_elements]
     return uniprotIDS.intersection(set(sp_ids_exploded))
 
-def filterBySwissProt(df: pd.DataFrame, onColumns: List[str], swiss_prot_ids: os.path = "drive/MyDrive/TFG/swiss_prot_ids.csv"):
+def filterBySwissProt(df: pd.DataFrame, onColumns: List[str]):
+    data_folder = os.getcwd() + '/data'
+    sp_ids_filepath = data_folder+'/swiss_prot_ids.txt'
+    if not os.path.isdir(data_folder):
+        os.mkdir(data_folder)
+    if not os.path.isfile(sp_ids_filepath):
+        logging.info("SwissProt Identifiers list not found. Downloading the last SwissProt dataset from Uniprot...")
+        sp_ids = downloadSwissProtIds()
+        with open(sp_ids_filepath, "w") as out_sp:
+            out_sp.write("\n".join(sp_ids))
+    else:
+        with open(sp_ids_filepath, "r") as swiss_prot_ids_file:
+            sp_ids = swiss_prot_ids_file.read().splitlines()
+
     for column in onColumns:
-        swiss_prot_proteins = intersectSwissProt(set(df[column].unique()), swiss_prot_ids)
-        df = df[df[column].isin(swiss_prot_proteins)]
-    return df    
+        df = df[df[column].isin(sp_ids)]
+    return df   
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PP2GO pipeline", epilog="Enjoy!")
     parser.add_argument("--orthologs", required=True, type=str, help="Orthologs input.")
+    parser.add_argument("--filter-by-sp", required=False, default=False, action="store_true", help="Select if wants to filter by only Swiss Prot proteins")
     parser.add_argument("--gaf-file", required=True, type=str, help="Gene Ontology annotation file.")
-    parser.add_argument("--go-obo-file", required=False, type=str, default="./data/go.obo", help="Core ontology in OBO format.")
     parser.add_argument("--pp-matrix", required=False, type=str, default="", help="Name of the Phylogenetic Profiling Matrix if wants to be saved.")
     parser.add_argument("--proteome-species", nargs="*", type=int, default=[9606], help="Space separated list of species whose proteins will be used for the Phylogenetic Profiling Matrix. Human proteome will be taken by default.")
     parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
@@ -59,14 +73,14 @@ def main():
     
     # Read and filter orthologs dataset
     all_orthologs = pd.read_table(args.orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
-    orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns)
+    if args.filter_by_sp: orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns) 
     
     # Compute Phylogenetic Profiling matrix
     pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=args.proteome_species, reference_species=args.reference_species)
     pp_matrix = pp.computeCountsMatrix() #TODO: include Pres-Abs/Counts as arguments
     
     # Assign GO terms
-    goa = GeneOntology(obo_file_path=args.go_obo_file, gaf_file_path=args.gaf_file, hasHeader=False) #TODO: support not filtered gaf files
+    goa = GeneOntology(gaf_file_path=args.gaf_file)
     goa.filterByAspects(args.go_aspects)
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=True) #TODO: add include_parents as argument
@@ -89,6 +103,6 @@ if __name__ == "__main__":
 
 #### TESTS ####
 #   
-#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab -v
+#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --filter-by-sp --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab -v
 #
 #python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab -v
