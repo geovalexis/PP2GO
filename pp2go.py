@@ -17,10 +17,11 @@ from helpers.helper_functions import downloadSwissProtIds
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
 __version__ = "0.1"
-
-
-
 __DESCRIPTION__ = ""
+
+
+IDMAPPING_FILEPATH = "./data/idmapping_selected_qfo_subset.tab.gz"
+GAF_FILEPATH = "./data/goa_uniprot_qfo.gaf.gz"
 
 
 def intersectSwissProt(uniprotIDS: set, swiss_prot_ids: os.path):
@@ -53,11 +54,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PP2GO pipeline", epilog="Enjoy!")
     parser.add_argument("--orthologs", required=True, type=str, help="Orthologs input.")
     parser.add_argument("--filter-by-sp", required=False, default=False, action="store_true", help="Select if wants to filter by only Swiss Prot proteins")
-    parser.add_argument("--gaf-file", required=True, type=str, help="Gene Ontology annotation file.")
+    parser.add_argument("--gaf-file", required=True if not os.path.isfile(GAF_FILEPATH) else False, type=str, default=GAF_FILEPATH, help="Gene Ontology annotation file.")
+    parser.add_argument("--idmapping_file", required=True if not os.path.isfile(IDMAPPING_FILEPATH) else False, type=str, default=IDMAPPING_FILEPATH, help="Identifiers mapping file from Uniprot.")
     parser.add_argument("--pp-matrix", required=False, type=str, default="", help="Name of the Phylogenetic Profiling Matrix if wants to be saved.")
     parser.add_argument("--proteome-species", nargs="*", type=int, default=[9606], help="Space separated list of species whose proteins will be used for the Phylogenetic Profiling Matrix. Human proteome will be taken by default.")
     parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
     parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
+    parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
+    parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
     parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
     parser.add_argument("-v","--verbose", required=False, default=False, action="store_true", help="Verbose logging.")
     return parser.parse_args()
@@ -72,11 +76,11 @@ def main():
     )    
     
     # Read and filter orthologs dataset
-    all_orthologs = pd.read_table(args.orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
-    if args.filter_by_sp: orthologs_swiss_prot_only = filterBySwissProt(all_orthologs, onColumns=all_orthologs.columns) 
-    
+    orthologs = pd.read_table(args.orthologs, names=["uniprotid1", "uniprotid2"], dtype="string")
+    if args.filter_by_sp: orthologs = filterBySwissProt(orthologs, onColumns=orthologs.columns) 
+
     # Compute Phylogenetic Profiling matrix
-    pp = PhylogeneticProfiling(orthologs_swiss_prot_only, onSpecies=args.proteome_species, reference_species=args.reference_species)
+    pp = PhylogeneticProfiling(idmapping_file=args.idmapping_file, orthologs=orthologs, onSpecies=args.proteome_species, reference_species=args.reference_species)
     pp_matrix = pp.computeCountsMatrix() #TODO: include Pres-Abs/Counts as arguments
     
     # Assign GO terms
@@ -103,6 +107,6 @@ if __name__ == "__main__":
 
 #### TESTS ####
 #   
-#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --filter-by-sp --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab -v
+#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --filter-by-sp --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab --min-gos 100 -v
 #
-#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --gaf-file ./data/goa_uniprot_qfo.gaf.gz --pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab -v
+#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --filter-by-sp --pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab --min-gos 100 -v

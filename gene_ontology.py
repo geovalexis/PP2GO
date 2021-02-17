@@ -1,10 +1,10 @@
 import os
 import pdb
 import logging
+import requests
 from typing import Dict
 from enum import Enum
 
-import wget
 import pandas as pd
 import numpy as np
 
@@ -51,7 +51,9 @@ class GeneOntology():
             os.mkdir(data_folder)
         if not os.path.isfile(go_obo_filepath):
             logging.info("go.obo not found. Downloading last Gene Ontology in OBO format...")
-            wget.download(go_obo_url, go_obo_filepath)
+            response = requests.get(go_obo_url)
+            with open(go_obo_filepath, "wb") as f:
+                f.write(response.content)
         return go_obo_filepath
     
     @property

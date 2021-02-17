@@ -19,8 +19,8 @@ __DESCRIPTION__ = ""
 
 class PhylogeneticProfiling():
 
-    def __init__(self, orthologs: pd.DataFrame, onSpecies: list = [], reference_species: list = []):
-        self._orthologs = self.mapTaxIDs(orthologs, onColumns=orthologs.columns, dropUnmatched=True) #TODO: Support for OrthoXML format
+    def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, onSpecies: list = [], reference_species: list = []):
+        self._orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=orthologs.columns, dropUnmatched=True) #TODO: Support for OrthoXML format
         self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique())
         self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._orthologs.columns[1]}_taxID"].unique()) 
 
@@ -46,7 +46,7 @@ class PhylogeneticProfiling():
         return self._onSpecies
 
     @staticmethod
-    def mapTaxIDs(df: pd.DataFrame, onColumns: list, dropUnmatched: bool = True):
+    def mapTaxIDs(idmapping: os.path, df: pd.DataFrame, onColumns: list, dropUnmatched: bool = True):
         """[summary]
 
         Args:
@@ -64,7 +64,7 @@ class PhylogeneticProfiling():
         #loop = asyncio.get_event_loop()
         #uniproid2taxid = loop.run_until_complete(TaxaMapping.mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(list(set(all_uniprotids))))
         #uniproid2taxid = TaxaMapping.mapUniprot2Taxid_NCBI(set(all_uniprotids))
-        uniproid2taxid = TaxaMapping.mapUniprot2Taxid_Uniprot(set(all_uniprotids))
+        uniproid2taxid = TaxaMapping.mapUniprot2Taxid_Uniprot(set(all_uniprotids), idmapping)
         for column in onColumns:
             df[f"{column}_taxID"] = df[column].apply(lambda x:  uniproid2taxid.get(x, pd.NA)).astype(pd.Int64Dtype())
         if dropUnmatched: 
@@ -134,7 +134,7 @@ class TaxaMapping():
 
     
     @staticmethod
-    def mapUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path = "./data/idmapping_selected_qfo_subset.tab.gz") -> Dict: 
+    def mapUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path) -> Dict: 
         """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
         Args:
             uniprotIDs (set): set of genes to translate
@@ -144,7 +144,7 @@ class TaxaMapping():
         """    
         uniprot2taxid = pd.read_table(idmapping,
                                 compression="gzip", 
-                                names=["UniprotKB-AC", "GO", "NCBI-taxon"],  #TODO: use the original file with all the columns
+                                names=["UniprotKB-AC", "GO", "NCBI-taxon"], #TODO: drop drop column
                                 usecols=["UniprotKB-AC", "NCBI-taxon"],
                                 dtype={"UniprotKB-AC":"string", "NCBI-taxon": "int32"})
         uniprot2taxid = uniprot2taxid[uniprot2taxid["UniprotKB-AC"].isin(uniprotIDs)] 
