@@ -8,7 +8,9 @@ import pandas as pd
 import numpy as np
 
 #For multiprocessing
-from multiprocessing import cpu_count
+from os import sched_getaffinity
+N_USABLE_CORES = len(sched_getaffinity(0)) # This give us the actual number of usable cores, unlike cpu_count(), 
+                                           # which give us the total (in MN4 would always say 48, although we had assigned a cpus-per-task of 24)
 
 # Scikit learn utils 
 from sklearn.model_selection import train_test_split
@@ -55,7 +57,7 @@ class ML():
 
     # From https://towardsdatascience.com/simple-way-to-find-a-suitable-algorithm-for-your-data-in-scikit-learn-python-9a9710c7c0fe
     @staticmethod
-    def create_baseline_classifiers(seed=8):
+    def create_baseline_classifiers(seed=8, cv=5):
         """Create a list of baseline classifiers.
         
         Parameters
@@ -65,17 +67,18 @@ class ML():
         -------
         A list containing tuple of model's name and object.
         """
+        free_ncores = N_USABLE_CORES-cv if N_USABLE_CORES>cv else -2 # -2 means all cores available except 1
         models = {}
         # Inherently multilabel
         models['Dummy'] = DummyClassifier(random_state=seed, strategy='prior')
-        models['RandomForest'] = RandomForestClassifier(random_state=seed)
-        models['KNN'] = KNeighborsClassifier()
+        models['RandomForest'] = RandomForestClassifier(random_state=seed, n_jobs=free_ncores)
+        models['KNN'] = KNeighborsClassifier(n_jobs=free_ncores)
         models['NeuralNetwork'] = MLPClassifier(random_state=seed)
 
         # No support for multilabel unless using OneVSRestClassifier or ClassifierChain
-        models['SupportVectorMachine'] = OneVsRestClassifier(SVC(random_state=seed, probability=True), n_jobs=-1)
-        models['GradientBoosting'] = OneVsRestClassifier(GradientBoostingClassifier(random_state=seed), n_jobs=-1)
-        models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=-1)
+        models['SupportVectorMachine'] = OneVsRestClassifier(SVC(random_state=seed, probability=True), n_jobs=free_ncores)
+        models['GradientBoosting'] = OneVsRestClassifier(GradientBoostingClassifier(random_state=seed), n_jobs=free_ncores)
+        models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=free_ncores)
         return models
 
     def assess_models(self, cv=5, metrics=("accuracy", "f1_macro")):
@@ -99,7 +102,7 @@ class ML():
         summary = pd.DataFrame()
         for name, model in self.models_available.items():
             logging.info(f"Crossvalidating {name} model...")
-            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if cpu_count()>cv else -2))
+            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
             std = result.std().rename('{}_std'.format)
             summary[name] = pd.concat([mean, std], axis=0)
