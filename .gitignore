@@ -1,13 +1,13 @@
 # My ignores
 QfO_release*
 **.gz
-**.raw
 **.logs
 *.sh
 *.vscode
 bsc_cluster/
 bsc_pc/
 drive/
+orthologs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

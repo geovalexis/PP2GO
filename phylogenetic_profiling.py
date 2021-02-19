@@ -144,7 +144,7 @@ class TaxaMapping():
         """    
         uniprot2taxid = pd.read_table(idmapping,
                                 compression="gzip", 
-                                names=["UniprotKB-AC", "GO", "NCBI-taxon"], #TODO: drop drop column
+                                names=["UniprotKB-AC", "GO", "NCBI-taxon"], #TODO: drop GO column
                                 usecols=["UniprotKB-AC", "NCBI-taxon"],
                                 dtype={"UniprotKB-AC":"string", "NCBI-taxon": "int32"})
         uniprot2taxid = uniprot2taxid[uniprot2taxid["UniprotKB-AC"].isin(uniprotIDs)] 
