@@ -67,11 +67,11 @@ class ML():
         -------
         A list containing tuple of model's name and object.
         """
-        free_ncores = N_USABLE_CORES-cv if N_USABLE_CORES>cv else -2 # -2 means all cores available except 1
+        free_ncores = N_USABLE_CORES-cv if N_USABLE_CORES>cv else -2    # -2 means all cores available except 1
         models = {}
         # Inherently multilabel
         models['Dummy'] = DummyClassifier(random_state=seed, strategy='prior')
-        models['RandomForest'] = RandomForestClassifier(random_state=seed, n_jobs=free_ncores)
+        models['RandomForest'] = RandomForestClassifier(random_state=seed, n_jobs=1) # Random Forest consumes a lot of memory to be run in parallel
         models['KNN'] = KNeighborsClassifier(n_jobs=free_ncores)
         models['NeuralNetwork'] = MLPClassifier(random_state=seed)
 
@@ -104,6 +104,8 @@ class ML():
             logging.info(f"Crossvalidating {name} model...")
             result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
+            for m in metrics:
+                logging.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
             std = result.std().rename('{}_std'.format)
             summary[name] = pd.concat([mean, std], axis=0)
         return summary.sort_index()
