@@ -61,7 +61,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
     parser.add_argument("--pp-matrix", required=False, type=str, default="", help="Name of the Phylogenetic Profiling Matrix if wants to be saved.")
     parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
+    parser.add_argument("--set-as-root", type=str, required=False, default=None, help="Set a given GO term as root, so only their children can be assigned")
     parser.add_argument("--include-go-parents", required=False, default=False, action="store_true", help="Include all the lineage for each GO term assign to a protein.")
+    parser.add_argument("--min-level", type=int, required=False, default=None, help="Minimum level until which the parents will be included (if apply)")
+    parser.add_argument("--min-depth", type=int, required=False, default=None, help="Minimum depth until which the parents will be included (if apply)")
     parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
     parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
     parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
@@ -88,14 +91,15 @@ def main():
     # Assign GO terms
     goa = GeneOntology(gaf_file_path=args.gaf_file)
     goa.filterByAspects(args.go_aspects)
+    goa.filterByQualifier("NOT") #TODO: add as argument
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
-    proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=args.include_go_parents) 
+    if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root) # GO:0051646 corresponds to mitochondrion localization but it just has 16 children
+    proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=args.include_go_parents, min_level=args.min_level, min_depth=args.min_depth) 
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
     
     # Performe Machine Learning algorithm (if apply)
-    if args.ml_results:
-        runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results) 
+    runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results) 
 
     # Save PP matrix (if apply)
     if args.pp_matrix:
@@ -109,6 +113,6 @@ if __name__ == "__main__":
 
 #### TESTS ####
 #   
-#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --include-go-parents --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab --min-gos 100 -v
+#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --include-go-parents --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab --min-gos 100 --min-level 3 -v
 #
-#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --include-go-parents--pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab --min-gos 100 -v
+#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --include-go-parents--pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab --min-gos 100 --min-level 3 -v

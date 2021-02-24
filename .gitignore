@@ -8,6 +8,7 @@ bsc_cluster/
 bsc_pc/
 drive/
 orthologs/
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
