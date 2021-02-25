@@ -118,11 +118,16 @@ class ML():
     
 
 def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
-    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must be labeled
+    target_proteins = pp_matrix[pp_matrix["GO_IDs"].str.len()==0].index # save proteins that does not have any label (GO term)
+    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
     if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
     if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
+    pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max))
-    logging.info(f"Shrinked number of GO terms from {pp_matrix['GO_IDs'].explode().unique().size} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
+    logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
+    pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>0] # NOTE (VERY IMPORTANT): filter those proteins that may have remained without
+                                                                                      #                        any annotation after applying the filtering by frequency,
+                                                                                      #                        otherwise the dataset would be biased
     ml = ML(pp_matrix_training)
     assess_summary = ml.assess_models()
     logging.info(f"Assess summary:\n {assess_summary}")
@@ -132,10 +137,10 @@ def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_fil
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform only Machine Learning", epilog="Enjoy!")
-    parser.add_argument("--pp-matrix", type=str, required=False, default="drive/MyDrive/TFG/phylogenetic_profile_matrix_pres-absc_v2.tab", help="Phylogenetic Profiling matrix")
+    parser.add_argument("--pp-matrix", type=str, required=False, default="results/MTP/MtP_201912-pp_matrix_counts.tab", help="Phylogenetic Profiling matrix")
     parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
     parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
-    parser.add_argument("--ml-results", type=str, required=False, default="drive/MyDrive/TFG/MTP_last-ML_assesment.tab", help="Filename for the Machine Learning models assessment results.")
+    parser.add_argument("--ml-results", type=str, required=False, default="MTP_201912-prova-ML_assesment.tab", help="Filename for the Machine Learning models assessment results.")
     return parser.parse_args()
 
 if __name__ == "__main__":
