@@ -118,16 +118,16 @@ class ML():
     
 
 def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
-    target_proteins = pp_matrix[pp_matrix["GO_IDs"].str.len()==0].index # save proteins that does not have any label (GO term)
+    target_proteins = pp_matrix[pp_matrix["GO_IDs"].str.len()==0].iloc[:, :-1] # save proteins that does not have any label (GO term)
     pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
     if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
     if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
-    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max))
+    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)).dropna() #NOTE: very import to drop those without any value
     logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
-    pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>0] # NOTE (VERY IMPORTANT): filter those proteins that may have remained without
-                                                                                      #                        any annotation after applying the filtering by frequency,
-                                                                                      #                        otherwise the dataset would be biased
+    labels_len_mode = pp_matrix_training["GO_IDs"].str.len().mode()[0]
+    logging.info(f"Mode of: {labels_len_mode}")
+    #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]
     ml = ML(pp_matrix_training)
     assess_summary = ml.assess_models()
     logging.info(f"Assess summary:\n {assess_summary}")
