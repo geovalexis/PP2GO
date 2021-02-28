@@ -28,6 +28,14 @@ def filterOutByFrequency(column: pd.Series, min_threshold: int = None, max_thres
     column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=0).agg(list)
     return column_filtered
 
+def filterOutByExactFrequency(column: pd.Series, freq: int) -> pd.Series:
+    col_exploded = column.explode()
+    elements_counts = col_exploded.value_counts()
+    out_elements = elements_counts[elements_counts==freq].index
+    print(f"There are {out_elements.size} elements with that frequency.")
+    column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=0).agg(list)
+    return column_filtered
+
 
 def downloadSwissProtIds() -> list:
     # Documentation in https://www.uniprot.org/help/api_queries
