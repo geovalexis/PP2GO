@@ -18,24 +18,21 @@ __version__ = "0.1"
 __DESCRIPTION__ = ""
 
 class PhylogeneticProfiling():
+    """ 
+    It takes an orthologs dataset as input in the following format: uniprotid1 | uniprotid2 | uniprotid1_taxID | uniprot2_taxID. 
+    Both set of proteins are supposed to be interexchangable, so in this case the first set of uniprot IDs will act as proteome 
+    dataset and the second as orthologs dataset. 
+    """
 
-    def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, onSpecies: list = [], reference_species: list = []):
+    def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, reference_species: list = [], onProteins: list = [], onSpecies: list = []):
         self._orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=orthologs.columns, dropUnmatched=True) #TODO: Support for OrthoXML format
-        self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique())
         self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._orthologs.columns[1]}_taxID"].unique()) 
-
-    # NOTE: we cannot define multiple constructors in Python
-    # def __init__(self, orthologs: pd.DataFrame, onProteins: list, reference_species: list, mapping_file: os.path):
-    #     #TODO: we might need to compute a phylogentic profile given a list of proteins instead of a list of species
-    #     raise NotImplementedError()
-    
-    @property
-    def orthologsDataFrame(self):
-        logging.info("Filtering orthologs dataset.")
-        return self._orthologs[
-            self._orthologs[f"{self._orthologs.columns[0]}_taxID"].isin(self._onSpecies)
-            &
-            self._orthologs[f"{self._orthologs.columns[1]}_taxID"].isin(self._reference_species)]
+        if not onProteins:
+            self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique()) # If no specie is specified, all available will be taken
+            self._onProteins = self._orthologs[self._orthologs[f"{self._orthologs.columns[0]}_taxID"].isin(self._onSpecies)][self._orthologs.columns[0]].unique()
+        else:
+            self._onProteins = set.intersection(set(onProteins), set(self._orthologs[self._orthologs.columns[0]]))
+            self._onSpecies = self._orthologs[self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)][f"{self._orthologs.columns[0]}_taxID"].unique()
     
     @property
     def referenceSpecies(self):
@@ -44,6 +41,23 @@ class PhylogeneticProfiling():
     @property
     def onSpecies(self):
         return self._onSpecies
+    
+    @property
+    def onProteins(self):
+        return self._onProteins
+
+    @property
+    def orthologsDataFrame(self):
+        """ 
+        FIltering the original orthologs dataset by only the proteins and taxa that we need will
+        help us to save memory
+        """
+        logging.info("Filtering orthologs dataset.")
+        return self._orthologs[
+            self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)
+            &
+            self._orthologs[f"{self._orthologs.columns[1]}_taxID"].isin(self._reference_species)]
+    
 
     @staticmethod
     def mapTaxIDs(idmapping: os.path, df: pd.DataFrame, onColumns: list, dropUnmatched: bool = True):
@@ -76,14 +90,12 @@ class PhylogeneticProfiling():
 
     def computeCountsMatrix(self):
         orthologs_dataset = self.orthologsDataFrame
-        proteins = orthologs_dataset[f"{orthologs_dataset.columns[0]}"].unique()
-        taxa = self.referenceSpecies
-        logging.debug(f"Total number of unique proteins: {len(proteins)}")
+        logging.debug(f"Total number of unique proteins: {len(self.onProteins)}")
         logging.info("Computing Phylogenetic Profiling matrix...")
         with Parallel(n_jobs=-1) as run_in_parallel:
-            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, orthologs_dataset, proteins) for tax in taxa)))
-        logging.info(f"...found orthologs in {len(matrix)} out of {len(taxa)} taxons.")
-        matrix_df = pd.DataFrame(matrix, index=proteins)
+            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, orthologs_dataset, self.onProteins) for tax in self.referenceSpecies)))
+        logging.info(f"...found orthologs in {len(matrix)} out of {len(self.referenceSpecies)} taxons.")
+        matrix_df = pd.DataFrame(matrix, index=self.onProteins)
         logging.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
     
@@ -151,7 +163,7 @@ class TaxaMapping():
         # Check if all the uniprotIDs have a corresponding taxID
         if (uniprot2taxid["UniprotKB-AC"].nunique() != len(uniprotIDs)):
             logging.warning(f"The tax IDs for {len(uniprotIDs)-uniprot2taxid['UniprotKB-AC'].nunique()} uniprotKB accession numbers couldn't be found.")
-            logging.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
+            #logging.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
         return uniprot2taxid.set_index("UniprotKB-AC")["NCBI-taxon"].to_dict()
 
     @staticmethod

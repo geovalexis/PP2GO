@@ -58,6 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--filter-by-sp", required=False, default=False, action="store_true", help="Select if wants to filter by only Swiss Prot proteins")
     parser.add_argument("--pres-abs", required=False, default=False, action="store_true", help="Compute presence/abscense PP Matrix instead of counts PP matrix.")
     parser.add_argument("--proteome-species", nargs="*", type=int, default=[9606], help="Space separated list of species whose proteins will be used for the Phylogenetic Profiling Matrix. Human proteome will be taken by default.")
+    parser.add_argument("--proteome", type=argparse.FileType("rt"), required=False, help="File that contains a line-separated list of proteins to be take as input proteome.")
     parser.add_argument("--reference-species", nargs="*", type=int, default=[], help="Space separated list of reference organisms on which the orthologs will be searched for. By default all available will be taken.")
     parser.add_argument("--pp-matrix", required=False, type=str, default="", help="Name of the Phylogenetic Profiling Matrix if wants to be saved.")
     parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
@@ -85,7 +86,11 @@ def main():
     if args.filter_by_sp: orthologs = filterBySwissProt(orthologs, onColumns=orthologs.columns) 
 
     # Compute Phylogenetic Profiling matrix
-    pp = PhylogeneticProfiling(idmapping_file=args.idmapping_file, orthologs=orthologs, onSpecies=args.proteome_species, reference_species=args.reference_species)
+    pp = PhylogeneticProfiling(idmapping_file=args.idmapping_file, 
+                                orthologs=orthologs, 
+                                reference_species=args.reference_species, 
+                                onProteins=args.proteome.read().splitlines() if args.proteome else [], 
+                                onSpecies=args.proteome_species)
     pp_matrix = pp.computeCountsMatrix() if not args.pres_abs else pp.computePresenceAbscenseMatrix() 
     
     # Assign GO terms
