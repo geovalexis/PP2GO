@@ -71,6 +71,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
     parser.add_argument("-v","--verbose", required=False, default=False, action="store_true", help="Verbose logging.")
     return parser.parse_args()
+    
 
 def main():
     args = parse_args()
@@ -98,18 +99,23 @@ def main():
     goa.filterByAspects(args.go_aspects)
     goa.filterByQualifier("NOT") #TODO: add as argument
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
-    if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root) # GO:0051646 corresponds to mitochondrion localization but it just has 16 children
+    if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root)
+    # TODO: save proteins that are not really annotated -> in this case an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered)
     proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=args.include_go_parents, min_level=args.min_level, min_depth=args.min_depth) 
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
     
-    # Performe Machine Learning algorithm (if apply)
-    runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results) 
-
-    # Save PP matrix (if apply)
-    if args.pp_matrix:
-        pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
-        pp_matrix.to_csv(args.pp_matrix, sep="\t", header=True, index=True)
+    
+    try:
+        # Performe Machine Learning algorithm (if apply)
+        runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results) 
+    except:
+        raise
+    finally:
+        # Save PP matrix (if apply)
+        if args.pp_matrix:
+            pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
+            pp_matrix.to_csv(args.pp_matrix, sep="\t", header=True, index=True)
 
 
 if __name__ == "__main__":

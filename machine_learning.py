@@ -118,9 +118,7 @@ class ML():
     
 
 def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
-    target_proteins = pp_matrix[pp_matrix["GO_IDs"].str.len()==0].iloc[:, :-1] # save proteins that does not have any label (GO term)
     pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
-    
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
     if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
     if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
@@ -130,8 +128,10 @@ def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_fil
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
     
     logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
-    labels_len_mode = pp_matrix_training["GO_IDs"].str.len().mode()[0]
-    logging.info(f"Ocurrences mode: {labels_len_mode}")
+    labels_len_per_protein = pp_matrix_training["GO_IDs"].str.len()
+    logging.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
+    logging.info(f"Ocurrences median: {labels_len_per_protein.median()}")
+    logging.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
     #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]
     ml = ML(pp_matrix_training)
     assess_summary = ml.assess_models()

@@ -32,7 +32,7 @@ class PhylogeneticProfiling():
             self._onProteins = self._orthologs[self._orthologs[f"{self._orthologs.columns[0]}_taxID"].isin(self._onSpecies)][self._orthologs.columns[0]].unique()
         else:
             self._onProteins = set.intersection(set(onProteins), set(self._orthologs[self._orthologs.columns[0]]))
-            self._onSpecies = self._orthologs[self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)][f"{self._orthologs.columns[0]}_taxID"].unique()
+            self._onSpecies = list(self._orthologs[self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)][f"{self._orthologs.columns[0]}_taxID"].unique())
     
     @property
     def referenceSpecies(self):
