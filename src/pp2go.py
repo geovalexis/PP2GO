@@ -101,8 +101,8 @@ def main():
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
     if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root)
     # TODO: save proteins that are not really annotated -> in this case an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered)
-    proteins2GOterms = goa.assignGOterms(pp_matrix.index, include_parents=args.include_go_parents, min_level=args.min_level, min_depth=args.min_depth) 
-    pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x, np.array([])))
+    proteins2GOterms = goa.assignGOterms(pp_matrix.index.get_level_values(1), include_parents=args.include_go_parents, min_level=args.min_level, min_depth=args.min_depth) 
+    pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x[1], np.array([])))
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
     
     

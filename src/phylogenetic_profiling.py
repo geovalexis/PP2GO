@@ -27,38 +27,49 @@ class PhylogeneticProfiling():
     def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, reference_species: list = [], onProteins: list = [], onSpecies: list = []):
         self._proteome_column = orthologs.columns[0]
         self._reference_species_column = orthologs.columns[1]
-        self._orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=[self._proteome_column, self._reference_species_column], dropUnmatched=True) #TODO: Support for OrthoXML format
-        self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._reference_species_column}_taxID"].unique()) 
-        if not onProteins:
-            self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{ self._proteome_column}_taxID"].unique()) # If no specie is specified, all available will be taken
-            self._onProteins = self._orthologs[self._orthologs[f"{ self._proteome_column}_taxID"].isin(self._onSpecies)][ self._proteome_column].unique()
+        self._species_availables = list(orthologs[self._reference_species_column].unique())
+        self._orthologs = self.mapAndfilterOrthologs(idmapping_file, orthologs, reference_species, onProteins, onSpecies)
+
+    def mapAndfilterOrthologs(self, idmapping_file, orthologs, reference_species, onProteins, onSpecies):
+        """
+        Map taxIDs to the orthologs and filter dataset by the given reference species and proteins/species
+        """
+        taxd_orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=[self._proteome_column, self._reference_species_column], dropUnmatched=True) #TODO: Support for OrthoXML format
+        if reference_species:
+            filtered_orthologs_dataset = self.filterByReferenceSpecies(taxd_orthologs, set(reference_species))      
         else:
-            self._onProteins = set.intersection(set(onProteins), set(self._orthologs[ self._proteome_column]))
-            self._onSpecies = list(self._orthologs[self._orthologs[ self._proteome_column].isin(self._onProteins)][f"{ self._proteome_column}_taxID"].unique())
-    
+            filtered_orthologs_dataset = taxd_orthologs  
+
+        if onProteins:
+            filtered_orthologs_dataset = self.filterByProteins(taxd_orthologs, set(onProteins))
+        elif onSpecies:
+            filtered_orthologs_dataset = self.filterBySpecies(taxd_orthologs,  set(onSpecies))
+        #TODO: check that there is no repeated orthologs (bot uniprotId1 and uniprotId2 are the same)
+        return filtered_orthologs_dataset
+
+    def filterByReferenceSpecies(self, taxd_orthologs_dataset, reference_species):
+        logging.debug("Filtering orthologs dataset by reference species...")
+        return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].isin(reference_species)]
+
+    def filterByProteins(self, taxd_orthologs_dataset, onProteins):
+        logging.debug("Filtering orthologs dataset by proteins...")
+        return taxd_orthologs_dataset[taxd_orthologs_dataset[self._proteome_column].isin(onProteins)]
+
+    def filterBySpecies(self, taxd_orthologs_dataset, onSpecies):
+        logging.debug("Filtering orthologs dataset by species...")
+        return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._proteome_column}_taxID"].isin(onSpecies)]
+
     @property
     def referenceSpecies(self):
-        return self._reference_species
+        return list(self._orthologs[f"{self._reference_species_column}_taxID"].unique())
     
     @property
     def onSpecies(self):
-        return self._onSpecies
-    
-    @property
-    def onProteins(self):
-        return self._onProteins
+        return list(self._orthologs[f"{self._proteome_column}_taxID"].unique())
 
     @property
-    def orthologsDataFrame(self):
-        """ 
-        FIltering the original orthologs dataset by only the proteins and taxa that we need will
-        help us to save memory
-        """
-        logging.info("Filtering orthologs dataset.")
-        return self._orthologs[
-            self._orthologs[ self._proteome_column].isin(self._onProteins)
-            &
-            self._orthologs[f"{self._reference_species_column}_taxID"].isin(self._reference_species)]
+    def onProteins(self):
+        return list(self._orthologs[self._proteome_column].unique())
     
 
     @staticmethod
@@ -91,13 +102,14 @@ class PhylogeneticProfiling():
         return self.computeCountsMatrix().applymap(lambda x: 1 if x >= 1 else 0)
 
     def computeCountsMatrix(self):
-        orthologs_dataset = self.orthologsDataFrame
-        logging.debug(f"Total number of unique proteins: {len(self.onProteins)}")
+        proteome = list(self._orthologs.drop_duplicates(subset=[self._proteome_column])[self._proteome_column])
+        proteome_taxa = list(self._orthologs.drop_duplicates(subset=[self._proteome_column])[f"{self._proteome_column}_taxID"])
+        logging.debug(f"Total number of unique proteins: {len(proteome)}")
         logging.info("Computing Phylogenetic Profiling matrix...")
         with Parallel(n_jobs=-1) as run_in_parallel:
-            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, orthologs_dataset, self.onProteins) for tax in self.referenceSpecies)))
-        logging.info(f"...found orthologs in {len(matrix)} out of {len(self.referenceSpecies)} taxons.")
-        matrix_df = pd.DataFrame(matrix, index=self.onProteins)
+            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, self._orthologs, proteome) for tax in self.referenceSpecies)))
+        logging.info(f"...found orthologs in {len(matrix)} out of {len(self._species_availables)} taxons.")
+        matrix_df = pd.DataFrame(matrix, index=[proteome_taxa,proteome])
         logging.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
     
@@ -108,7 +120,7 @@ class PhylogeneticProfiling():
             ort_counts = []
             orthologs_found = 0
             for protein in proteins:
-                query = tax_orthologs[f"{self._reference_species_column}"].where(tax_orthologs[f"{ self._proteome_column}"]==protein).dropna() 
+                query = tax_orthologs[f"{self._reference_species_column}"].where(tax_orthologs[self._proteome_column]==protein).dropna() 
                 if query.empty:
                     ort_counts.append(0)
                 else:
@@ -117,7 +129,7 @@ class PhylogeneticProfiling():
             logging.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
             return (tax, ort_counts)
         else:
-            logging.warning(f"No ortholog has been found for taxon {tax}.")
+            logging.warning(f"No ortholog has been found for taxon {tax} within this proteome.")
 
 
     
