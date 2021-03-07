@@ -25,14 +25,16 @@ class PhylogeneticProfiling():
     """
 
     def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, reference_species: list = [], onProteins: list = [], onSpecies: list = []):
-        self._orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=orthologs.columns, dropUnmatched=True) #TODO: Support for OrthoXML format
-        self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._orthologs.columns[1]}_taxID"].unique()) 
+        self._proteome_column = orthologs.columns[0]
+        self._reference_species_column = orthologs.columns[1]
+        self._orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=[self._proteome_column, self._reference_species_column], dropUnmatched=True) #TODO: Support for OrthoXML format
+        self._reference_species = reference_species if reference_species else list(self._orthologs[f"{self._reference_species_column}_taxID"].unique()) 
         if not onProteins:
-            self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{self._orthologs.columns[0]}_taxID"].unique()) # If no specie is specified, all available will be taken
-            self._onProteins = self._orthologs[self._orthologs[f"{self._orthologs.columns[0]}_taxID"].isin(self._onSpecies)][self._orthologs.columns[0]].unique()
+            self._onSpecies = onSpecies if onSpecies else list(self._orthologs[f"{ self._proteome_column}_taxID"].unique()) # If no specie is specified, all available will be taken
+            self._onProteins = self._orthologs[self._orthologs[f"{ self._proteome_column}_taxID"].isin(self._onSpecies)][ self._proteome_column].unique()
         else:
-            self._onProteins = set.intersection(set(onProteins), set(self._orthologs[self._orthologs.columns[0]]))
-            self._onSpecies = list(self._orthologs[self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)][f"{self._orthologs.columns[0]}_taxID"].unique())
+            self._onProteins = set.intersection(set(onProteins), set(self._orthologs[ self._proteome_column]))
+            self._onSpecies = list(self._orthologs[self._orthologs[ self._proteome_column].isin(self._onProteins)][f"{ self._proteome_column}_taxID"].unique())
     
     @property
     def referenceSpecies(self):
@@ -54,9 +56,9 @@ class PhylogeneticProfiling():
         """
         logging.info("Filtering orthologs dataset.")
         return self._orthologs[
-            self._orthologs[self._orthologs.columns[0]].isin(self._onProteins)
+            self._orthologs[ self._proteome_column].isin(self._onProteins)
             &
-            self._orthologs[f"{self._orthologs.columns[1]}_taxID"].isin(self._reference_species)]
+            self._orthologs[f"{self._reference_species_column}_taxID"].isin(self._reference_species)]
     
 
     @staticmethod
@@ -99,15 +101,14 @@ class PhylogeneticProfiling():
         logging.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
     
-    @staticmethod
-    def searchOrtholog(tax, orthologs_dataset, proteins):
+    def searchOrtholog(self, tax, orthologs_dataset, proteins):
         logging.debug(f"Searching orthologs for taxon {tax}...")
-        tax_orthologs = orthologs_dataset[orthologs_dataset[f"{orthologs_dataset.columns[1]}_taxID"]==tax]
+        tax_orthologs = orthologs_dataset[orthologs_dataset[f"{self._reference_species_column}_taxID"]==tax]
         if not tax_orthologs.empty:
             ort_counts = []
             orthologs_found = 0
             for protein in proteins:
-                query = tax_orthologs[f"{orthologs_dataset.columns[1]}"].where(tax_orthologs[f"{orthologs_dataset.columns[0]}"]==protein).dropna() 
+                query = tax_orthologs[f"{self._reference_species_column}"].where(tax_orthologs[f"{ self._proteome_column}"]==protein).dropna() 
                 if query.empty:
                     ort_counts.append(0)
                 else:
