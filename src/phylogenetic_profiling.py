@@ -27,7 +27,7 @@ class PhylogeneticProfiling():
     def __init__(self, idmapping_file: os.path, orthologs: pd.DataFrame, reference_species: list = [], onProteins: list = [], onSpecies: list = []):
         self._proteome_column = orthologs.columns[0]
         self._reference_species_column = orthologs.columns[1]
-        self._species_availables = list(orthologs[self._reference_species_column].unique())
+        self._species_availables = None
         self._orthologs = self.mapAndfilterOrthologs(idmapping_file, orthologs, reference_species, onProteins, onSpecies)
 
     def mapAndfilterOrthologs(self, idmapping_file, orthologs, reference_species, onProteins, onSpecies):
@@ -49,6 +49,7 @@ class PhylogeneticProfiling():
 
     def filterByReferenceSpecies(self, taxd_orthologs_dataset, reference_species):
         logging.debug("Filtering orthologs dataset by reference species...")
+        self._species_availables = list(taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].unique()) #Save all species available in the dataset
         return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].isin(reference_species)]
 
     def filterByProteins(self, taxd_orthologs_dataset, onProteins):
