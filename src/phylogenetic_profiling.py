@@ -35,6 +35,7 @@ class PhylogeneticProfiling():
         Map taxIDs to the orthologs and filter dataset by the given reference species and proteins/species
         """
         taxd_orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=[self._proteome_column, self._reference_species_column], dropUnmatched=True) #TODO: Support for OrthoXML format
+        self._species_availables = list(taxd_orthologs[f"{self._reference_species_column}_taxID"].unique()) #Save all species available in the dataset
         if reference_species:
             filtered_orthologs_dataset = self.filterByReferenceSpecies(taxd_orthologs, set(reference_species))      
         else:
@@ -49,7 +50,6 @@ class PhylogeneticProfiling():
 
     def filterByReferenceSpecies(self, taxd_orthologs_dataset, reference_species):
         logging.debug("Filtering orthologs dataset by reference species...")
-        self._species_availables = list(taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].unique()) #Save all species available in the dataset
         return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].isin(reference_species)]
 
     def filterByProteins(self, taxd_orthologs_dataset, onProteins):
