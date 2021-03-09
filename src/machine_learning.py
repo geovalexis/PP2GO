@@ -120,9 +120,10 @@ class ML():
 def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
     pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
-    if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
-    if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
-    pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)).dropna() #NOTE: very import to drop those without any value
+    if min or max:
+        if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
+        if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
+        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)) #NOTE: very import to drop those without any value
     
     logging.info(f"Filtering out GO terms present in all samples..")
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
@@ -157,7 +158,7 @@ if __name__ == "__main__":
         stream=sys.stdout
     ) 
     pp_matrix = pd.read_table(args.pp_matrix, 
-                                header=0, index_col=0,  
+                                header=0, index_col=[0,1],  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
     runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
 

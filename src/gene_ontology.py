@@ -82,7 +82,6 @@ class GeneOntology():
         return self
 
     def assignGOterms(self, uniprotids: list, include_parents: bool = False, **kwargs) -> dict:
-        uniprotids = set(uniprotids)
         logging.info(f"Assigning GO terms...")
         logging.info(f"{len(uniprotids)} proteins in total...")
         goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]

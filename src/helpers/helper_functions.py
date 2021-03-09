@@ -25,7 +25,7 @@ def filterOutByFrequency(column: pd.Series, min_threshold: int = None, max_thres
     min_threshold = min_threshold if min_threshold else elements_counts.min()
     max_threshold = max_threshold if max_threshold else elements_counts.max()
     out_elements = elements_counts[(elements_counts<min_threshold) | (elements_counts>max_threshold)].index
-    column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=0).agg(list)
+    column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=list(range(column.index.nlevels))).agg(list)
     return column_filtered
 
 def filterOutByExactFrequency(column: pd.Series, freq: int) -> pd.Series:
@@ -33,7 +33,7 @@ def filterOutByExactFrequency(column: pd.Series, freq: int) -> pd.Series:
     elements_counts = col_exploded.value_counts()
     out_elements = elements_counts[elements_counts==freq].index
     print(f"There are {out_elements.size} elements with that frequency.")
-    column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=0).agg(list)
+    column_filtered = col_exploded[~col_exploded.isin(out_elements)].groupby(level=list(range(column.index.nlevels))).agg(list)
     return column_filtered
 
 
