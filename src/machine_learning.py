@@ -40,7 +40,7 @@ class ML():
 
     def __init__(self, phylogenetic_profile_matrix: pd.DataFrame):
         self.training_matrix_X = phylogenetic_profile_matrix.iloc[:, :-1] #values
-        self.training_matrix_Y = pd.DataFrame(self.mlb.fit_transform(phylogenetic_profile_matrix[phylogenetic_profile_matrix.columns[-1]]), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
+        self.training_matrix_Y = pd.DataFrame(self.mlb.fit_transform(phylogenetic_profile_matrix["GO_IDs"]), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
         self.models_available = self.create_baseline_classifiers()
 
     @property

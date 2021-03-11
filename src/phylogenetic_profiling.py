@@ -45,7 +45,6 @@ class PhylogeneticProfiling():
             filtered_orthologs_dataset = self.filterByProteins(taxd_orthologs, set(onProteins))
         elif onSpecies:
             filtered_orthologs_dataset = self.filterBySpecies(taxd_orthologs,  set(onSpecies))
-        #TODO: check that there is no repeated orthologs (bot uniprotId1 and uniprotId2 are the same)
         return filtered_orthologs_dataset
 
     def filterByReferenceSpecies(self, taxd_orthologs_dataset, reference_species):
@@ -108,20 +107,24 @@ class PhylogeneticProfiling():
         logging.debug(f"Total number of unique proteins: {len(proteome)}")
         logging.info("Computing Phylogenetic Profiling matrix...")
         with Parallel(n_jobs=-1) as run_in_parallel:
-            matrix = dict(filter(None, run_in_parallel(delayed(self.searchOrtholog)(tax, self._orthologs, proteome) for tax in self.referenceSpecies)))
+            matrix = dict(filter(None, 
+                        run_in_parallel(delayed(
+                            self.searchOrtholog) (tax, self._orthologs, proteome, self._proteome_column, self._reference_species_column) 
+                                for tax in self.referenceSpecies)))
         logging.info(f"...found orthologs in {len(matrix)} out of {len(self._species_availables)} taxons.")
         matrix_df = pd.DataFrame(matrix, index=[proteome_taxa,proteome])
         logging.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
     
-    def searchOrtholog(self, tax, orthologs_dataset, proteins):
+    @staticmethod
+    def searchOrtholog(tax, orthologs_dataset, proteins, proteome_column, reference_species_column):
         logging.debug(f"Searching orthologs for taxon {tax}...")
-        tax_orthologs = orthologs_dataset[orthologs_dataset[f"{self._reference_species_column}_taxID"]==tax]
+        tax_orthologs = orthologs_dataset[orthologs_dataset[f"{reference_species_column}_taxID"]==tax]
         if not tax_orthologs.empty:
             ort_counts = []
             orthologs_found = 0
             for protein in proteins:
-                query = tax_orthologs[f"{self._reference_species_column}"].where(tax_orthologs[self._proteome_column]==protein).dropna() 
+                query = tax_orthologs[f"{reference_species_column}"].where(tax_orthologs[proteome_column]==protein).dropna() 
                 if query.empty:
                     ort_counts.append(0)
                 else:
