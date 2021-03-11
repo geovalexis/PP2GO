@@ -64,8 +64,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--go-aspects", nargs="*", type=str, default=["P"], choices=["P", "C", "F"], help="GO aspect/ontology. By default only Biological Process will be taken.") 
     parser.add_argument("--set-as-root", type=str, required=False, default=None, help="Set a given GO term as root, so only their children can be assigned")
     parser.add_argument("--include-go-parents", required=False, default=False, action="store_true", help="Include all the lineage for each GO term assign to a protein.")
-    parser.add_argument("--min-level", type=int, required=False, default=None, help="Minimum level until which the parents will be included (if apply)")
-    parser.add_argument("--min-depth", type=int, required=False, default=None, help="Minimum depth until which the parents will be included (if apply)")
+    parser.add_argument("--min-level", type=int, required=False, default=None, help="Minimum level of GO terms that can be assigned")
+    parser.add_argument("--max-level", type=int, required=False, default=None, help="Maximum level of GO terms that can be assigned")
     parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
     parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
     parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
@@ -101,7 +101,7 @@ def main():
     goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
     if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root)
     # TODO: save proteins that are not really annotated -> in this case an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered)
-    proteins2GOterms = goa.assignGOterms(pp_matrix.index.get_level_values(1), include_parents=args.include_go_parents, min_level=args.min_level, min_depth=args.min_depth) 
+    proteins2GOterms = goa.assignGOterms(pp_matrix.index.get_level_values(1), include_parents=args.include_go_parents, min_level=args.min_level, max_level=args.max_level) 
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x[1], np.array([])))
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
     
