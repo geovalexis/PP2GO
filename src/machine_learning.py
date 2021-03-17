@@ -32,7 +32,7 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.naive_bayes import MultinomialNB
 
 
-from helpers.helper_functions import filterOutByFrequency, filterOutByExactFrequency
+from helpers.helper_functions import filterOutByExactFrequency, filterOutByMaxFrequency, filterOutByMinFrequency
 
 class ML():
 
@@ -118,16 +118,20 @@ class ML():
     
 
 def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
-    pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
+    #pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
+    pp_matrix_training = pp_matrix
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
-    if min or max:
-        if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
-        if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
-        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)).dropna() #NOTE: very import to drop those without any value
-    
+
+    if min: 
+        logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
+        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMinFrequency(pp_matrix_training["GO_IDs"], min_threshold=min)).dropna() #NOTE: very import to drop those without any value
+
+    if max: 
+        logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
+        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMaxFrequency(pp_matrix_training["GO_IDs"], max_threshold=max)).dropna() #NOTE: very import to drop those without any value    
+
     logging.info(f"Filtering out GO terms present in all samples..")
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
-    
     logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
     labels_len_per_protein = pp_matrix_training["GO_IDs"].str.len()
     logging.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
