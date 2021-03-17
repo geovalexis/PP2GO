@@ -123,7 +123,7 @@ def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_fil
     if min or max:
         if min: logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
         if max: logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
-        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)) #NOTE: very import to drop those without any value
+        pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByFrequency(pp_matrix_training["GO_IDs"], min_threshold=min, max_threshold=max)).dropna() #NOTE: very import to drop those without any value
     
     logging.info(f"Filtering out GO terms present in all samples..")
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
