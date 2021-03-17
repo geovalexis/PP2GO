@@ -43,7 +43,7 @@ class GeneOntology():
                              dtype="string",
                              comment="!",
                              compression="gzip")
-        self.go = obo_parser.GODag(obo_file_path if obo_file_path else self.retrieveOBOFile()) 
+        self.go = obo_parser.GODag(obo_file_path if obo_file_path else self.retrieveOBOFile(), optional_attrs="relationship") 
     
     @staticmethod
     def retrieveOBOFile():
@@ -79,7 +79,9 @@ class GeneOntology():
     
     def setGOtermAsRoot(self, go_term: str):
         logging.info(f"Setting {go_term} as root... All GO terms above it will be filtered out.")
-        go_term_children = self.go.get(go_term).get_all_children()
+        go_term_children = self.go.get(go_term).get_all_lower() #NOTE:  get_all_children() only get those childrem with is "is_a" relationship (not "part_of", "occurs_in", etc.)
+                                                                #       Use .get_all_lower() to get all descendants, included all type of relationships GO terms.
+        #go_term_children.add(go_term) #Also add the root GO term as posible candidate
         self.go_annotations = self.go_annotations[self.go_annotations["GO_ID"].isin(go_term_children)]
         return self
 
@@ -99,6 +101,10 @@ class GeneOntology():
             uniprotids2GOterms = {uniprotid:self.CutOffByMaxLevel(go_terms, max_level) for uniprotid, go_terms in uniprotids2GOterms.items()}
 
         return uniprotids2GOterms
+    
+    def findUnannotatedProteins(self):
+        #TODO: buscar todas aquellas proteinas que no tenga ninguna anotación. Esta función se tiene que llamar antes de filtrar el dataframe GOA
+        raise NotImplementedError()
     
     def CutOffByMaxLevel(self,go_terms: list,  max_level: int) -> list:
         filtered_go_terms = []
