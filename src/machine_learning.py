@@ -31,8 +31,13 @@ from sklearn.svm import SVC
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.naive_bayes import MultinomialNB
 
-
 from helpers.helper_functions import filterOutByExactFrequency, filterOutByMaxFrequency, filterOutByMinFrequency
+
+__author__ = "Geovanny Risco"
+__email__ = "geovanny.risco@bsc.es"
+__version__ = "0.1"
+
+logger = logging.getLogger(__name__)
 
 class ML():
 
@@ -95,17 +100,17 @@ class ML():
         -------
         A pandas DataFrame containing summary of baseline models' performance.
         """
-        logging.debug(f"The following models are available: {', '.join(self.models_available.keys())}")
-        logging.debug(f"Shape of X training matrix: {self.training_matrix_X.shape}")
-        logging.debug(f"Shape of Y training matrix: {self.training_matrix_Y.shape}")
-        logging.info("Assessing models...")
+        logger.debug(f"The following models are available: {', '.join(self.models_available.keys())}")
+        logger.debug(f"Shape of X training matrix: {self.training_matrix_X.shape}")
+        logger.debug(f"Shape of Y training matrix: {self.training_matrix_Y.shape}")
+        logger.info("Assessing models...")
         summary = pd.DataFrame()
         for name, model in self.models_available.items():
-            logging.info(f"Crossvalidating {name} model...")
+            logger.info(f"Crossvalidating {name} model...")
             result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
             for m in metrics:
-                logging.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
+                logger.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
             std = result.std().rename('{}_std'.format)
             summary[name] = pd.concat([mean, std], axis=0)
         return summary.sort_index()
@@ -123,20 +128,20 @@ def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_fil
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
 
     if min: 
-        logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
+        logger.info(f"Filtering out GO terms with less than {min} ocurrences.")
         pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMinFrequency(pp_matrix_training["GO_IDs"], min_threshold=min)).dropna() #NOTE: very import to drop those without any value
 
     if max: 
-        logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
+        logger.info(f"Filtering out GO terms with more than {max} ocurrences.")
         pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMaxFrequency(pp_matrix_training["GO_IDs"], max_threshold=max)).dropna() #NOTE: very import to drop those without any value    
 
-    logging.info(f"Filtering out GO terms present in all samples..")
+    logger.info(f"Filtering out GO terms present in all samples..")
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
-    logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
+    logger.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
     labels_len_per_protein = pp_matrix_training["GO_IDs"].str.len()
-    logging.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
-    logging.info(f"Ocurrences median: {labels_len_per_protein.median()}")
-    logging.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
+    logger.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
+    logger.info(f"Ocurrences median: {labels_len_per_protein.median()}")
+    logger.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
     #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]
     ml = ML(pp_matrix_training)
     assess_summary = ml.assess_models()

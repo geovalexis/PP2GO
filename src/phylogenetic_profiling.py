@@ -13,9 +13,8 @@ __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
 __version__ = "0.1"
 
+logger = logging.getLogger(__name__)
 
-
-__DESCRIPTION__ = ""
 
 class PhylogeneticProfiling():
     """ 
@@ -48,15 +47,15 @@ class PhylogeneticProfiling():
         return filtered_orthologs_dataset
 
     def filterByReferenceSpecies(self, taxd_orthologs_dataset, reference_species):
-        logging.debug("Filtering orthologs dataset by reference species...")
+        logger.debug("Filtering orthologs dataset by reference species...")
         return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._reference_species_column}_taxID"].isin(reference_species)]
 
     def filterByProteins(self, taxd_orthologs_dataset, onProteins):
-        logging.debug("Filtering orthologs dataset by proteins...")
+        logger.debug("Filtering orthologs dataset by proteins...")
         return taxd_orthologs_dataset[taxd_orthologs_dataset[self._proteome_column].isin(onProteins)]
 
     def filterBySpecies(self, taxd_orthologs_dataset, onSpecies):
-        logging.debug("Filtering orthologs dataset by species...")
+        logger.debug("Filtering orthologs dataset by species...")
         return taxd_orthologs_dataset[taxd_orthologs_dataset[f"{self._proteome_column}_taxID"].isin(onSpecies)]
 
     @property
@@ -87,7 +86,7 @@ class PhylogeneticProfiling():
         all_uniprotids = []
         for column in onColumns:
             all_uniprotids.extend(df[column].unique())
-        logging.info("Starting taxID assignment...")
+        logger.info("Starting taxID assignment...")
         uniproid2taxid = TaxaMapping.mapUniprot2Taxid_Uniprot(set(all_uniprotids), idmapping)
         for column in onColumns:
             df[f"{column}_taxID"] = df[column].apply(lambda x:  uniproid2taxid.get(x, pd.NA)).astype(pd.Int64Dtype())
@@ -101,21 +100,21 @@ class PhylogeneticProfiling():
     def computeCountsMatrix(self):
         proteome = list(self._orthologs.drop_duplicates(subset=[self._proteome_column])[self._proteome_column])
         proteome_taxa = list(self._orthologs.drop_duplicates(subset=[self._proteome_column])[f"{self._proteome_column}_taxID"])
-        logging.debug(f"Total number of unique proteins: {len(proteome)}")
-        logging.info("Computing Phylogenetic Profiling matrix...")
+        logger.debug(f"Total number of unique proteins: {len(proteome)}")
+        logger.info("Computing Phylogenetic Profiling matrix...")
         with Parallel(n_jobs=-1) as run_in_parallel:
             matrix = dict(filter(None, 
                         run_in_parallel(delayed(
                             self.searchOrtholog) (tax, self._orthologs, proteome, self._proteome_column, self._reference_species_column) 
                                 for tax in self.referenceSpecies)))
-        logging.info(f"...found orthologs in {len(matrix)} out of {len(self._species_availables)} taxons.")
+        logger.info(f"...found orthologs in {len(matrix)} out of {len(self._species_availables)} taxons.")
         matrix_df = pd.DataFrame(matrix, index=[proteome_taxa,proteome])
-        logging.info(f"Final shape of the matrix: {matrix_df.shape}")
+        logger.info(f"Final shape of the matrix: {matrix_df.shape}")
         return matrix_df
     
     @staticmethod
     def searchOrtholog(tax, orthologs_dataset, proteins, proteome_column, reference_species_column):
-        logging.debug(f"Searching orthologs for taxon {tax}...")
+        logger.debug(f"Searching orthologs for taxon {tax}...")
         tax_orthologs = orthologs_dataset[orthologs_dataset[f"{reference_species_column}_taxID"]==tax]
         if not tax_orthologs.empty:
             ort_counts = []
@@ -127,10 +126,10 @@ class PhylogeneticProfiling():
                 else:
                     ort_counts.append(query.count()) #Replace count() with tolist() if want to save the proteins IDs instead of just the count
                     orthologs_found+=1
-            logging.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
+            logger.debug(f"Found {orthologs_found} proteins with at least one ortholog in taxon {tax}.")
             return (tax, ort_counts)
         else:
-            logging.warning(f"No ortholog has been found for taxon {tax} within this proteome.")
+            logger.warning(f"No ortholog has been found for taxon {tax} within this proteome.")
 
 
     
@@ -154,8 +153,8 @@ class TaxaMapping():
         uniprot2taxid = uniprot2taxid[uniprot2taxid["accession"].isin(uniprotIDs)] 
         # Check if all the uniprotIDs have a corresponding taxID
         if (uniprot2taxid["accession"].nunique() != len(uniprotIDs)):
-            logging.warning(f"The tax ID for {len(uniprotIDs)-uniprot2taxid['accession'].nunique()} uniprotKB accession numbers couldn't be found.")
-            logging.debug(set.difference(uniprotIDs, set(uniprot2taxid["accession"].unique())))
+            logger.warning(f"The tax ID for {len(uniprotIDs)-uniprot2taxid['accession'].nunique()} uniprotKB accession numbers couldn't be found.")
+            logger.debug(set.difference(uniprotIDs, set(uniprot2taxid["accession"].unique())))
         return uniprot2taxid.set_index("accession")["taxid"].to_dict()
 
     
@@ -176,8 +175,8 @@ class TaxaMapping():
         uniprot2taxid = uniprot2taxid[uniprot2taxid["UniprotKB-AC"].isin(uniprotIDs)] 
         # Check if all the uniprotIDs have a corresponding taxID
         if (uniprot2taxid["UniprotKB-AC"].nunique() != len(uniprotIDs)):
-            logging.warning(f"The tax IDs for {len(uniprotIDs)-uniprot2taxid['UniprotKB-AC'].nunique()} uniprotKB accession numbers couldn't be found.")
-            #logging.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
+            logger.warning(f"The tax IDs for {len(uniprotIDs)-uniprot2taxid['UniprotKB-AC'].nunique()} uniprotKB accession numbers couldn't be found.")
+            #logger.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
         return uniprot2taxid.set_index("UniprotKB-AC")["NCBI-taxon"].to_dict()
 
 
@@ -194,7 +193,7 @@ class TaxaMapping():
             if len(uniprotIDs)>chunk:
                 for i in range(0, len(uniprotIDs), chunk):
                     step = i+chunk if (i+chunk) < len(uniprotIDs) else len(uniprotIDs)
-                    logging.info(f"{i} proteins already processed. Processing next batch...")
+                    logger.info(f"{i} proteins already processed. Processing next batch...")
                     res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session) for uniprotID in uniprotIDs[i:step]])
                     for j in res_batch:
                         result.update(j)
@@ -204,8 +203,8 @@ class TaxaMapping():
                 for j in res_batch:
                     result.update(j)
         if (len(uniprotIDs) != len(result)):
-            logging.warning(f"The tax IDs for {len(uniprotIDs)-len(result.keys())} uniprotKB accession numbers couldn't be found.")
-            logging.debug(set.difference(set(uniprotIDs), result.keys()))
+            logger.warning(f"The tax IDs for {len(uniprotIDs)-len(result.keys())} uniprotKB accession numbers couldn't be found.")
+            logger.debug(set.difference(set(uniprotIDs), result.keys()))
         return result    
     
     @staticmethod
@@ -218,10 +217,10 @@ class TaxaMapping():
                 if response.ok: # status_code == 200
                     return {uniprotID:(await response.json())["organism"]["taxonomy"]}
                 else:
-                    logging.debug(f"Protein {uniprotID} raised a {response.status} status code.") # It means that the protein couldn't be found or has been deleted.
+                    logger.debug(f"Protein {uniprotID} raised a {response.status} status code.") # It means that the protein couldn't be found or has been deleted.
                     return {}
             except aiohttp.ClientConnectionError as e:
-                logging.error(f"Raised a ClientConnectionError: {e.message}")
+                logger.error(f"Raised a ClientConnectionError: {e.message}")
                 asyncio.sleep(0.1)
-                logging.info(f"Retrying protein {uniprotID}")
+                logger.info(f"Retrying protein {uniprotID}")
                 

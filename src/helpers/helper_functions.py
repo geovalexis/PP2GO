@@ -1,9 +1,12 @@
 import os
+import logging
 import pdb
 from typing import List
-from joblib import logger
 import requests
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 
 def filterOutByMinFrequency(column: pd.Series, min_threshold: int) -> pd.Series:
     """ Take pandas' Series object and filter their values by a minimum threshold.

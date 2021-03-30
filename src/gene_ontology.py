@@ -1,21 +1,18 @@
 import os
 import pdb
 import logging
-from numpy.lib.function_base import kaiser
 import requests
-from typing import Dict
 from enum import Enum
-
 import pandas as pd
 import numpy as np
 
 from goatools import obo_parser
 
-
-
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
 __version__ = "0.1"
+
+logger = logging.getLogger(__name__)
 
 
 class GO_Aspects(Enum):
@@ -53,7 +50,7 @@ class GeneOntology():
         if not os.path.isdir(data_folder):
             os.mkdir(data_folder)
         if not os.path.isfile(go_obo_filepath):
-            logging.info("go.obo not found. Downloading last Gene Ontology in OBO format...")
+            logger.info("go.obo not found. Downloading last Gene Ontology in OBO format...")
             response = requests.get(go_obo_url)
             with open(go_obo_filepath, "wb") as f:
                 f.write(response.content)
@@ -64,12 +61,12 @@ class GeneOntology():
         return self.go_annotations
 
     def filterOutByAspects(self, aspects: list):
-        logging.info("Filtering GO terms by aspects...")
+        logger.info("Filtering GO terms by aspects...")
         self.go_annotations = self.go_annotations[self.go_annotations["Aspect"].isin(aspects)]
         return self
 
     def filterOutByEvidenceCodes(self, evidence_codes: list):
-        logging.info("Filtering GO terms by evidence codes...")
+        logger.info("Filtering GO terms by evidence codes...")
         self.go_annotations = self.go_annotations[self.go_annotations["Evidence Code"].isin(evidence_codes)]
         return self
 
@@ -78,7 +75,7 @@ class GeneOntology():
         return self
     
     def setGOtermAsRoot(self, go_term: str):
-        logging.info(f"Setting {go_term} as root... All GO terms above it will be filtered out.")
+        logger.info(f"Setting {go_term} as root... All GO terms above it will be filtered out.")
         go_term_children = self.go.get(go_term).get_all_lower() #NOTE:  get_all_children() only get those childrem with is "is_a" relationship (not "part_of", "occurs_in", etc.)
                                                                 #       Use .get_all_lower() to get all descendants, included all type of relationships GO terms.
         #go_term_children.add(go_term) #Also add the root GO term as posible candidate
@@ -86,11 +83,11 @@ class GeneOntology():
         return self
 
     def assignGOterms(self, uniprotids: list, include_parents: bool = False, min_level: int = None, max_level: int = None) -> dict:
-        logging.info(f"Assigning GO terms...")
-        logging.info(f"{len(uniprotids)} proteins in total...")
+        logger.info(f"Assigning GO terms...")
+        logger.info(f"{len(uniprotids)} proteins in total...")
         goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]
         uniprotids2GOterms = goa_filteredByUniprotids.groupby("DB_Object_ID")["GO_ID"].apply(np.unique).to_dict()
-        logging.debug(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins were filtered out or were not annotated.")
+        logger.debug(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins were filtered out or were not annotated.")
         #TODO: instead of taking all GO terms assigned, look for the deepest common ancestor between them: 
         # https://nbviewer.jupyter.org/urls/dessimozlab.github.io/go-handbook/GO%20Tutorial%20in%20Python%20-%20Solutions.ipynb
         if include_parents:
@@ -133,7 +130,7 @@ class GeneOntology():
             if go_term_record:
                 go_terms2parents[go_term] = go_term_record.get_all_parents() # The built-in function go_term_record.get_all_parents() does not cut-off by level or depth
             else:
-                logging.warning(f"Any record has been found for {go_term} in the current OBO file. No parents will be assigned for this GO term.")
+                logger.warning(f"Any record has been found for {go_term} in the current OBO file. No parents will be assigned for this GO term.")
         return go_terms2parents
 
     def concatenateParents(self, uniprotids2GOterms: dict) -> dict:

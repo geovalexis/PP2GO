@@ -95,5 +95,5 @@ if __name__ == "__main__":
 
 
 #### TESTS ####
-#   
-#python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --include-go-parents --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab --min-gos 100 --min-level 3 -v
+#python src/pp2go.py --orthologs orthologs/MtP_201912.tab       # Mock dataset  (Very fast)
+#python pp2go.py python src/pp2go.py --orthologs orthologs/MtP_201601_blasted.tab     # Real dataset
