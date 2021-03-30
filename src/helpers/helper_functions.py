@@ -1,8 +1,8 @@
 import os
-import requests
-
 import pdb
-
+from typing import List
+from joblib import logger
+import requests
 import pandas as pd
 
 def filterOutByMinFrequency(column: pd.Series, min_threshold: int) -> pd.Series:
@@ -49,6 +49,9 @@ def filterOutByExactFrequency(column: pd.Series, freq: int) -> pd.Series:
 
 
 def downloadSwissProtIds() -> list:
+    """
+    Helper funtion for filterBySwissProt()
+    """
     # Documentation in https://www.uniprot.org/help/api_queries
     endpoint = "https://www.uniprot.org/uniprot/"
     params = {
@@ -61,3 +64,40 @@ def downloadSwissProtIds() -> list:
     else:
         response.raise_for_status()
     
+
+def intersectSwissProt(uniprotIDS: set, swiss_prot_ids: os.path):
+    """
+    Helper function for filterBySwissProt()
+    """
+    with open(swiss_prot_ids, "r") as input:
+        sp_ids = input.read().split()
+    sp_ids = list(map(lambda line: line.split(","), sp_ids))
+    sp_ids_exploded = [item for packed_elements in sp_ids for item in packed_elements]
+    return uniprotIDS.intersection(set(sp_ids_exploded))
+
+def filterBySwissProt(df: pd.DataFrame, onColumns: List[str]):
+    """Filter out all proteins that do not belong to the SwissProt database
+
+    Args:
+        df (pd.DataFrame): working dataset
+        onColumns (List[str]): dataframe's column to perform the filtering
+
+    Returns:
+        dataframe: filtered dataframe with all proteins from the SwissProt database (validated/curated proteins)
+    """
+    data_folder = os.getcwd() + '/data'
+    sp_ids_filepath = data_folder+'/swiss_prot_ids.txt'
+    if not os.path.isdir(data_folder):
+        os.mkdir(data_folder)
+    if not os.path.isfile(sp_ids_filepath):
+        logger.info("SwissProt Identifiers list not found. Downloading the last SwissProt dataset from Uniprot...")
+        sp_ids = downloadSwissProtIds()
+        with open(sp_ids_filepath, "w") as out_sp:
+            out_sp.write("\n".join(sp_ids))
+    else:
+        with open(sp_ids_filepath, "r") as swiss_prot_ids_file:
+            sp_ids = swiss_prot_ids_file.read().splitlines()
+
+    for column in onColumns:
+        df = df[df[column].isin(sp_ids)]
+    return df   

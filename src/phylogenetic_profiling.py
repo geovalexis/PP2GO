@@ -61,7 +61,7 @@ class PhylogeneticProfiling():
 
     @property
     def referenceSpecies(self):
-        return list(self._orthologs[f"{self._reference_species_column}_taxID"].unique())
+        return self._species_availables
     
     @property
     def onSpecies(self):
@@ -88,9 +88,6 @@ class PhylogeneticProfiling():
         for column in onColumns:
             all_uniprotids.extend(df[column].unique())
         logging.info("Starting taxID assignment...")
-        #loop = asyncio.get_event_loop()
-        #uniproid2taxid = loop.run_until_complete(TaxaMapping.mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(list(set(all_uniprotids))))
-        #uniproid2taxid = TaxaMapping.mapUniprot2Taxid_NCBI(set(all_uniprotids))
         uniproid2taxid = TaxaMapping.mapUniprot2Taxid_Uniprot(set(all_uniprotids), idmapping)
         for column in onColumns:
             df[f"{column}_taxID"] = df[column].apply(lambda x:  uniproid2taxid.get(x, pd.NA)).astype(pd.Int64Dtype())
@@ -183,8 +180,36 @@ class TaxaMapping():
             #logging.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
         return uniprot2taxid.set_index("UniprotKB-AC")["NCBI-taxon"].to_dict()
 
+
+    @classmethod
+    def mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(cls, uniprotIDs, chunk=200) -> Dict:
+        loop = asyncio.get_event_loop()
+        uniproid2taxid = loop.run_until_complete(cls.mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(list(set(all_uniprotids))))
+        return uniproid2taxid
+
+    @classmethod
+    async def mapUniprotIDs2taxIDs_EBIRequest_parent_job(cls, uniprotIDs, chunk=200) -> Dict: # EBI limits requests to 200 requests/second/user
+        result = {}
+        async with aiohttp.ClientSession() as session:
+            if len(uniprotIDs)>chunk:
+                for i in range(0, len(uniprotIDs), chunk):
+                    step = i+chunk if (i+chunk) < len(uniprotIDs) else len(uniprotIDs)
+                    logging.info(f"{i} proteins already processed. Processing next batch...")
+                    res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session) for uniprotID in uniprotIDs[i:step]])
+                    for j in res_batch:
+                        result.update(j)
+                    #sleep(1)
+            else:
+                res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session) for uniprotID in uniprotIDs])
+                for j in res_batch:
+                    result.update(j)
+        if (len(uniprotIDs) != len(result)):
+            logging.warning(f"The tax IDs for {len(uniprotIDs)-len(result.keys())} uniprotKB accession numbers couldn't be found.")
+            logging.debug(set.difference(set(uniprotIDs), result.keys()))
+        return result    
+    
     @staticmethod
-    async def map_uniprotIDs2taxIDs_EBIRequest(uniprotID, session):
+    async def map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session):
         # Documentation in https://www.ebi.ac.uk/proteins/api/doc/
         while True:
             try:
@@ -200,23 +225,3 @@ class TaxaMapping():
                 asyncio.sleep(0.1)
                 logging.info(f"Retrying protein {uniprotID}")
                 
-    @classmethod
-    async def mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(cls, uniprotIDs, chunk=200) -> Dict: # EBI limits requests to 200 requests/second/user
-        result = {}
-        async with aiohttp.ClientSession() as session:
-            if len(uniprotIDs)>chunk:
-                for i in range(0, len(uniprotIDs), chunk):
-                    step = i+chunk if (i+chunk) < len(uniprotIDs) else len(uniprotIDs)
-                    logging.info(f"{i} proteins already processed. Processing next batch...")
-                    res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest(uniprotID, session) for uniprotID in uniprotIDs[i:step]])
-                    for j in res_batch:
-                        result.update(j)
-                    #sleep(1)
-            else:
-                res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest(uniprotID, session) for uniprotID in uniprotIDs])
-                for j in res_batch:
-                    result.update(j)
-        if (len(uniprotIDs) != len(result)):
-            logging.warning(f"The tax IDs for {len(uniprotIDs)-len(result.keys())} uniprotKB accession numbers couldn't be found.")
-            logging.debug(set.difference(set(uniprotIDs), result.keys()))
-        return result    

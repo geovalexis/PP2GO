@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from typing import Dict, List
 import os
 import logging
 import argparse
@@ -12,7 +11,7 @@ import numpy as np
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
 from machine_learning import runML
-from helpers.helper_functions import downloadSwissProtIds
+from helpers.helper_functions import filterBySwissProt
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -22,32 +21,6 @@ __DESCRIPTION__ = ""
 
 IDMAPPING_FILEPATH = "./data/idmapping_selected_qfo_subset.tab.gz"
 GAF_FILEPATH = "./data/goa_uniprot_qfo.gaf.gz"
-
-
-def intersectSwissProt(uniprotIDS: set, swiss_prot_ids: os.path):
-    with open(swiss_prot_ids, "r") as input:
-        sp_ids = input.read().split()
-    sp_ids = list(map(lambda line: line.split(","), sp_ids))
-    sp_ids_exploded = [item for packed_elements in sp_ids for item in packed_elements]
-    return uniprotIDS.intersection(set(sp_ids_exploded))
-
-def filterBySwissProt(df: pd.DataFrame, onColumns: List[str]):
-    data_folder = os.getcwd() + '/data'
-    sp_ids_filepath = data_folder+'/swiss_prot_ids.txt'
-    if not os.path.isdir(data_folder):
-        os.mkdir(data_folder)
-    if not os.path.isfile(sp_ids_filepath):
-        logging.info("SwissProt Identifiers list not found. Downloading the last SwissProt dataset from Uniprot...")
-        sp_ids = downloadSwissProtIds()
-        with open(sp_ids_filepath, "w") as out_sp:
-            out_sp.write("\n".join(sp_ids))
-    else:
-        with open(sp_ids_filepath, "r") as swiss_prot_ids_file:
-            sp_ids = swiss_prot_ids_file.read().splitlines()
-
-    for column in onColumns:
-        df = df[df[column].isin(sp_ids)]
-    return df   
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,12 +66,11 @@ def main():
                                 onProteins=args.proteome.read().splitlines() if args.proteome else [], 
                                 onSpecies=args.proteome_species)
     pp_matrix = pp.computeCountsMatrix() if not args.pres_abs else pp.computePresenceAbscenseMatrix() 
-    
     # Assign GO terms
     goa = GeneOntology(gaf_file_path=args.gaf_file)
-    goa.filterByAspects(args.go_aspects)
-    goa.filterByQualifier("NOT") #TODO: add as argument
-    goa.filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #TODO: add Evidence Code as arguments
+    goa.filterOutByAspects(args.go_aspects)
+    goa.filterOutByQualifier("NOT") #NOTE: NOT qualifier indicates that the gene product does not have that relationship to the GO term
+    goa.filterOutByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #NOTE: All evidence codes except for those "electronically"  inferred
     if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root)
     # TODO: save proteins that are not really annotated -> in this case an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered)
     proteins2GOterms = goa.assignGOterms(pp_matrix.index.get_level_values(1), include_parents=args.include_go_parents, min_level=args.min_level, max_level=args.max_level) 
@@ -125,5 +97,3 @@ if __name__ == "__main__":
 #### TESTS ####
 #   
 #python pp2go.py --orthologs drive/MyDrive/TFG/QfO_input.tsv --include-go-parents --pp-matrix drive/MyDrive/TFG/results/MTP_last-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/MTP_last-counts-ML_assesment.tab --min-gos 100 --min-level 3 -v
-#
-#python pp2go.py --orthologs PANTHER_14.1_all-20190603-2359.336.rels.raw --include-go-parents--pp-matrix drive/MyDrive/TFG/results/PANTHER_14.1_all-pp_matrix_counts.tab --ml-results drive/MyDrive/TFG/results/PANTHER_14.1_all-counts-ML_assesment.tab --min-gos 100 --min-level 3 -v

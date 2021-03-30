@@ -63,17 +63,17 @@ class GeneOntology():
     def goaDataFrame(self):
         return self.go_annotations
 
-    def filterByAspects(self, aspects: list):
+    def filterOutByAspects(self, aspects: list):
         logging.info("Filtering GO terms by aspects...")
         self.go_annotations = self.go_annotations[self.go_annotations["Aspect"].isin(aspects)]
         return self
 
-    def filterByEvidenceCodes(self, evidence_codes: list):
+    def filterOutByEvidenceCodes(self, evidence_codes: list):
         logging.info("Filtering GO terms by evidence codes...")
         self.go_annotations = self.go_annotations[self.go_annotations["Evidence Code"].isin(evidence_codes)]
         return self
 
-    def filterByQualifier(self, qualifier: str):
+    def filterOutByQualifier(self, qualifier: str):
         self.go_annotations = self.go_annotations[self.go_annotations["Qualifier"].fillna("")!=qualifier]
         return self
     
@@ -150,8 +150,8 @@ class GeneOntology():
 
 if __name__ == "__main__":
     goa_test = GeneOntology(gaf_file_path="./data/goa_uniprot_qfo.gaf.gz")
-    goa_test.filterByAspects([GO_Aspects.BiologicalProcess.value]).filterByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value)
-    goa_test.filterByQualifier("NOT")
+    goa_test.filterOutByAspects([GO_Aspects.BiologicalProcess.value]).filterOutByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value)
+    goa_test.filterOutByQualifier("NOT")
     #goa_test.setGOtermAsRoot("GO:0008150") # GO:0008150 corresponds to the actual root of the Biological Process ontology, which wouldn't affect much if we have already filtered by biological process
     proteins2GOterms = goa_test.assignGOterms(["Q13061", "Q8IZF6", "P08183"], include_parents=True, max_level=1)
     print(proteins2GOterms)
