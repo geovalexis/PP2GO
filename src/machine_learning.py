@@ -44,17 +44,18 @@ class ML():
     mlb = MultiLabelBinarizer()
 
     def __init__(self, phylogenetic_profile_matrix: pd.DataFrame):
-        self.training_matrix_X = phylogenetic_profile_matrix.iloc[:, :-1] #values
-        self.training_matrix_Y = pd.DataFrame(self.mlb.fit_transform(phylogenetic_profile_matrix["GO_IDs"]), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
+        self.matrix_X = phylogenetic_profile_matrix.iloc[:, :-1] 
+        self.matrix_Y = phylogenetic_profile_matrix.iloc[:, -1]
+        self.one_hot_encoded_matrix_Y = pd.DataFrame(self.mlb.fit_transform(self.matrix_Y), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
         self.models_available = self.create_baseline_classifiers()
 
     @property
     def labels(self):
-        return self.training_matrix_Y
+        return self.matrix_Y
     
     @property
     def features(self):
-        return self.training_matrix_X
+        return self.matrix_X
 
     @property
     def modelsAvailable(self):
@@ -101,13 +102,13 @@ class ML():
         A pandas DataFrame containing summary of baseline models' performance.
         """
         logger.debug(f"The following models are available: {', '.join(self.models_available.keys())}")
-        logger.debug(f"Shape of X training matrix: {self.training_matrix_X.shape}")
-        logger.debug(f"Shape of Y training matrix: {self.training_matrix_Y.shape}")
+        logger.debug(f"Shape of X training matrix: {self.matrix_X.shape}")
+        logger.debug(f"Shape of Y training matrix: {self.one_hot_encoded_matrix_Y.shape}")
         logger.info("Assessing models...")
         summary = pd.DataFrame()
         for name, model in self.models_available.items():
             logger.info(f"Crossvalidating {name} model...")
-            result = pd.DataFrame(cross_validate(model, self.training_matrix_X, self.training_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
+            result = pd.DataFrame(cross_validate(model, self.matrix_X, self.one_hot_encoded_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
             for m in metrics:
                 logger.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
