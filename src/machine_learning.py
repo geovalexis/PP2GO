@@ -170,7 +170,6 @@ def model_selection(pp_matrix: pd.DataFrame, min: int = None, max: int = None, r
 def one_vs_rest_assessment(pp_matrix: pd.DataFrame, model_name: str, GO_terms: list, resampling_size: int = 1):
     pp_matrix_training = pp_matrix.loc[9606]
     ml = ML(pp_matrix_training)
-    #logging.info(f"Assess summary:\n {assess_summary}")
     results = pd.DataFrame()
     for go_term in GO_terms:
         assess_summary = ml.one_vs_rest(model_name, go_term, resampling_size)
@@ -182,7 +181,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pp-matrix", type=str, required=False, default="results/MTP/MtP_201912-pp_matrix_counts.tab", help="Phylogenetic Profiling matrix")
     parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
     parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
-    parser.add_argument("--ml-results", type=str, required=False, default="MTP_201912-prova-ML_assesment.tab", help="Filename for the Machine Learning models assessment results.")
+    parser.add_argument("--go-terms", type=argparse.FileType("rt"), required=False, default=None, help="File with a line-separated list of GO terms to assess individually.")
+    parser.add_argument("--ml-results", type=str, required=False, default=None, help="Filename for the Machine Learning models assessment results.")
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -197,5 +197,8 @@ if __name__ == "__main__":
                                 header=0, index_col=[0,1],  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
     #model_selection(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
-    one_vs_rest_assessment(pp_matrix, "RandomForest", ["GO:0005739"], resampling_size=5)
+    go_terms_list = args.go_terms.read().splitlines()
+    results = one_vs_rest_assessment(pp_matrix, "RandomForest", go_terms_list, resampling_size=5)
+    if args.ml_results:
+        results.to_csv(args.ml_results, sep="\t", header=True, index=True)
 
