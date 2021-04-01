@@ -4,6 +4,7 @@ import sys
 import pdb
 import argparse
 import os
+from numpy.core.fromnumeric import mean, size
 import pandas as pd
 import numpy as np
 
@@ -121,9 +122,25 @@ class ML():
         if model: return model.fit()
         else:
             raise Exception("Specified model is not available")
-    
 
-def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
+    def one_vs_rest(self, model_name: str, go_term: str, resampling: int):
+        model = self.models_available.get(model_name)
+        positive_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 1].index
+        negative_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 0].index
+        results = pd.DataFrame()
+        logging.debug(f"Assessing {model_name} for GO term {go_term}...")
+        for i in range(resampling):
+            negative_samples_subset = np.random.choice(negative_samples, size=len(positive_samples)) #NOTE: positive and negative sample must be of the same size to avoid class imbalance
+            training_samples = positive_samples.union(negative_samples_subset)
+            X_train = self.matrix_X.loc[training_samples.tolist(), :]
+            y_train = self.one_hot_encoded_matrix_Y.loc[training_samples.tolist(), go_term]
+            results[i] = pd.DataFrame(cross_validate(model, X_train, y_train, cv=5, scoring=("accuracy", "f1_macro", "roc_auc"), n_jobs=-1)).mean()
+        mean_results = results.mean(axis=1)
+        logging.debug(f"Results after resampling {resampling} times:\n{mean_results}")
+        return mean_results
+
+
+def model_selection(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
     #pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
     pp_matrix_training = pp_matrix
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
@@ -150,6 +167,15 @@ def runML(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_fil
     if results_file:
         assess_summary.to_csv(results_file, sep="\t", header=True, index=True)
 
+def one_vs_rest_assessment(pp_matrix: pd.DataFrame, model_name: str, GO_terms: list, resampling_size: int = 1):
+    pp_matrix_training = pp_matrix.loc[9606]
+    ml = ML(pp_matrix_training)
+    #logging.info(f"Assess summary:\n {assess_summary}")
+    results = pd.DataFrame()
+    for go_term in GO_terms:
+        assess_summary = ml.one_vs_rest(model_name, go_term, resampling_size)
+        results[go_term] = assess_summary
+    return results
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform only Machine Learning", epilog="Enjoy!")
@@ -170,6 +196,6 @@ if __name__ == "__main__":
     pp_matrix = pd.read_table(args.pp_matrix, 
                                 header=0, index_col=[0,1],  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
-    runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
-
+    #model_selection(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
+    one_vs_rest_assessment(pp_matrix, "RandomForest", ["GO:0005739"], resampling_size=5)
 
