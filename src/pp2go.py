@@ -10,8 +10,9 @@ import numpy as np
 
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
-from machine_learning import model_selection, one_vs_rest_assessment
+from machine_learning import prepare_training_matrix, all_vs_all_assessment, one_vs_rest_assessment
 from helpers.helper_functions import filterBySwissProt
+
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -41,10 +42,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-level", type=int, required=False, default=None, help="Maximum level of GO terms that can be assigned")
     parser.add_argument("--min-gos", type=int, required=False, default=None, help="Min number of GO terms' ocurrences,")
     parser.add_argument("--max-gos", type=int, required=False, default=None, help="Max number of GO terms' ocurrences,")
+    parser.add_argument("--ml-mode", type=str, required=False, default="all", choices=["all", "one"], help="Mode of the ML algorithm. Choices: multilabel (all) or binary classification (one).")
     parser.add_argument("--ml-results", type=str, required=False, default="", help="Filename for the Machine Learning models assessment results.")
     parser.add_argument("-v","--verbose", required=False, default=False, action="store_true", help="Verbose logging.")
     return parser.parse_args()
-    
+ 
 
 def main():
     args = parse_args()
@@ -80,7 +82,14 @@ def main():
     
     try:
         # Performe Machine Learning algorithm
-        results = model_selection(pp_matrix, min=args.min_gos, max=args.max_gos) 
+        pp_matrix_training = prepare_training_matrix(pp_matrix, min=args.min_gos, max=args.max_gos)
+        if args.ml_mode == "all":
+            results = all_vs_all_assessment(pp_matrix_training) 
+        else:
+            results = one_vs_rest_assessment(
+                pp_matrix_training, 
+                GO_terms=pp_matrix_training["GO_IDs"].explode().unique().tolist(), 
+                resampling_size=5)
         if args.results:
             results.to_csv(args.ml_results, sep="\t", header=True, index=True)
     except:

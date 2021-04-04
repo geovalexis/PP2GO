@@ -3,8 +3,6 @@ import logging
 import sys
 import pdb
 import argparse
-import os
-from numpy.core.fromnumeric import mean, size
 import pandas as pd
 import numpy as np
 
@@ -105,7 +103,7 @@ class ML():
         summary = pd.DataFrame()
         for name, model in models_to_assess.items():
             logger.info(f"Crossvalidating {name} model...")
-            result = pd.DataFrame(cross_validate(model, self.matrix_X, self.matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
+            result = pd.DataFrame(cross_validate(model, self.matrix_X, self.matrix_Y, cv=cv, scoring=metrics, n_jobs=-1))
             mean = result.mean().rename('{}_mean'.format)
             for m in metrics:
                 logger.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
@@ -146,35 +144,36 @@ class ML():
             logging.debug(f"...results after resampling {resampling} times:\n{summary[name]}")
         return summary.sort_index()
 
-
-def all_vs_all_assessment(pp_matrix: pd.DataFrame, min: int = None, max: int = None):
-    #pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
-    pp_matrix_training = pp_matrix
-    pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
+def prepare_training_matrix(pp_matrix: pd.DataFrame, min: int, max: int):
+    #pp_matrix = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
+    pp_matrix_training = pp_matrix.copy()
+    pp_matrix_training_size_before = pp_matrix['GO_IDs'].explode().unique().size
 
     if min: 
-        logger.info(f"Filtering out GO terms with less than {min} ocurrences.")
+        logging.info(f"Filtering out GO terms with less than {min} ocurrences.")
         pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMinFrequency(pp_matrix_training["GO_IDs"], min_threshold=min)).dropna() #NOTE: very import to drop those without any value
 
     if max: 
-        logger.info(f"Filtering out GO terms with more than {max} ocurrences.")
+        logging.info(f"Filtering out GO terms with more than {max} ocurrences.")
         pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByMaxFrequency(pp_matrix_training["GO_IDs"], max_threshold=max)).dropna() #NOTE: very import to drop those without any value    
 
-    logger.info(f"Filtering out GO terms present in all samples..")
+    logging.info(f"Filtering out GO terms present in all samples..")
     pp_matrix_training = pp_matrix_training.assign(GO_IDs=filterOutByExactFrequency(pp_matrix_training["GO_IDs"], freq=pp_matrix_training.shape[0])).dropna() # Drop those GO terms that are present in all samples (not informative and induces bias)
-    logger.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
+    logging.info(f"Shrinked number of distinct annotated GO terms from {pp_matrix_training_size_before} to {pp_matrix_training['GO_IDs'].explode().unique().size}.")
     labels_len_per_protein = pp_matrix_training["GO_IDs"].str.len()
-    logger.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
-    logger.info(f"Ocurrences median: {labels_len_per_protein.median()}")
-    logger.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
-    #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]
+    logging.info(f"Ocurrences mode: {labels_len_per_protein.mode()[0]}")
+    logging.info(f"Ocurrences median: {labels_len_per_protein.median()}")
+    logging.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
+    #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]   
+    return pp_matrix_training
+
+def all_vs_all_assessment(pp_matrix_training: pd.DataFrame):
     ml = ML(pp_matrix_training)
-    assess_summary = ml.assess_models(models=ml.models_available.keys())
+    assess_summary = ml.assess_all_labels(models=ml.models_available.keys())
     logging.info(f"Assess summary:\n {assess_summary}")
     return assess_summary
 
-def one_vs_rest_assessment(pp_matrix: pd.DataFrame, GO_terms: list, resampling_size: int = 1):
-    pp_matrix_training = pp_matrix.loc[9606]
+def one_vs_rest_assessment(pp_matrix_training: pd.DataFrame, GO_terms: list, resampling_size: int = 1):
     ml = ML(pp_matrix_training)
     results = {}
     for go_term in GO_terms:
@@ -203,9 +202,9 @@ if __name__ == "__main__":
     pp_matrix = pd.read_table(args.pp_matrix, 
                                 header=0, index_col=[0,1],  
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
-    #model_selection(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
-    go_terms_list = args.go_terms.read().splitlines()
-    results = one_vs_rest_assessment(pp_matrix, go_terms_list, resampling_size=5)
+    pp_matrix_training = prepare_training_matrix(pp_matrix, min=args.min_gos, max=args.max_gos)
+    results = one_vs_rest_assessment(pp_matrix_training, GO_terms=args.go_terms.read().splitlines() if args.go_terms else pp_matrix_training["GO_IDs"].explode().unique().tolist(), resampling_size=5)
+    #results = all_vs_all_assessment(pp_matrix_training)
     if args.ml_results:
         results.to_csv(args.ml_results, sep="\t", header=True, index=True)
 
