@@ -88,7 +88,7 @@ class ML():
         models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=free_ncores)
         return models
 
-    def assess_models(self, cv=5, metrics=("accuracy", "f1_macro")):
+    def assess_all_labels(self, models: list, cv=5, metrics=("accuracy", "f1_macro")):
         """Provide summary of cross validation results for models.
         
         Parameters
@@ -102,12 +102,13 @@ class ML():
         -------
         A pandas DataFrame containing summary of baseline models' performance.
         """
-        logger.debug(f"The following models are available: {', '.join(self.models_available.keys())}")
+        models_to_assess = {model_name:self.models_available[model_name] for model_name in models}
+        logger.debug(f"The following models will be evaluated: {', '.join(models_to_assess)}")
         logger.debug(f"Shape of X training matrix: {self.matrix_X.shape}")
         logger.debug(f"Shape of Y training matrix: {self.one_hot_encoded_matrix_Y.shape}")
         logger.info("Assessing models...")
         summary = pd.DataFrame()
-        for name, model in self.models_available.items():
+        for name, model in models_to_assess.items():
             logger.info(f"Crossvalidating {name} model...")
             result = pd.DataFrame(cross_validate(model, self.matrix_X, self.one_hot_encoded_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
@@ -117,21 +118,36 @@ class ML():
             summary[name] = pd.concat([mean, std], axis=0)
         return summary.sort_index()
 
-    def one_vs_rest(self, model_name: str, go_term: str, resampling: int):
-        model = self.models_available.get(model_name)
+    def assess_one_label(self, go_term: str, resampling: int, models: list, cv=5, metrics=("accuracy", "f1_macro", "roc_auc")):
+        """[summary]
+
+        Args:
+            model_name (str): [description]
+            go_term (str): [description]
+            resampling (int): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        models_to_assess = {model_name:self.models_available[model_name] for model_name in models}
         positive_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 1].index
         negative_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 0].index
-        results = pd.DataFrame()
-        logging.debug(f"Assessing {model_name} for GO term {go_term}...")
-        for i in range(resampling):
-            negative_samples_subset = np.random.choice(negative_samples, size=len(positive_samples)) #NOTE: positive and negative sample must be of the same size to avoid class imbalance
-            training_samples = positive_samples.union(negative_samples_subset)
-            X_train = self.matrix_X.loc[training_samples.tolist(), :]
-            y_train = self.one_hot_encoded_matrix_Y.loc[training_samples.tolist(), go_term]
-            results[i] = pd.DataFrame(cross_validate(model, X_train, y_train, cv=5, scoring=("accuracy", "f1_macro", "roc_auc"), n_jobs=-1)).mean()
-        mean_results = results.mean(axis=1)
-        logging.debug(f"Results after resampling {resampling} times:\n{mean_results}")
-        return mean_results
+        summary = pd.DataFrame()
+        logging.info(f"Assessing GO term {go_term}...")
+        for name, model in models_to_assess.items():
+            logging.info(f"With {name}...")
+            results = pd.DataFrame()
+            for i in range(resampling):
+                negative_samples_subset = np.random.choice(negative_samples, size=len(positive_samples)) #NOTE: positive and negative sample must be of the same size to avoid class imbalance
+                training_samples = positive_samples.union(negative_samples_subset)
+                X_train = self.matrix_X.loc[training_samples.tolist(), :]
+                y_train = self.one_hot_encoded_matrix_Y.loc[training_samples.tolist(), go_term]
+                results[i] = pd.DataFrame(cross_validate(model, X_train, y_train, cv=cv, scoring=metrics, n_jobs=-1)).mean()
+            results_mean = results.mean(axis=1).rename('{}_mean'.format)
+            results_std = results.std(axis=1).rename('{}_std'.format)
+            summary[name] = pd.concat([results_mean, results_std], axis=0)
+            logging.debug(f"...results after resampling {resampling} times:\n{summary[name]}")
+        return summary.sort_index()
 
 
 def all_vs_all_assessment(pp_matrix: pd.DataFrame, min: int = None, max: int = None):
@@ -156,18 +172,19 @@ def all_vs_all_assessment(pp_matrix: pd.DataFrame, min: int = None, max: int = N
     logger.info(f"Ocurrences mean: {labels_len_per_protein.mean()}")
     #pp_matrix_training = pp_matrix_training[pp_matrix_training["GO_IDs"].str.len()>labels_len_mode]
     ml = ML(pp_matrix_training)
-    assess_summary = ml.assess_models()
+    assess_summary = ml.assess_models(models=ml.models_available.keys())
     logging.info(f"Assess summary:\n {assess_summary}")
     return assess_summary
 
-def one_vs_rest_assessment(pp_matrix: pd.DataFrame, model_name: str, GO_terms: list, resampling_size: int = 1):
+def one_vs_rest_assessment(pp_matrix: pd.DataFrame, GO_terms: list, resampling_size: int = 1):
     pp_matrix_training = pp_matrix.loc[9606]
     ml = ML(pp_matrix_training)
-    results = pd.DataFrame()
+    results = {}
     for go_term in GO_terms:
-        assess_summary = ml.one_vs_rest(model_name, go_term, resampling_size)
+        assess_summary = ml.assess_one_label(go_term, resampling_size, models=["RandomForest"])
         results[go_term] = assess_summary
-    return results
+    results_df = pd.concat(results, axis=1)
+    return results_df
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Perform only Machine Learning", epilog="Enjoy!")
@@ -191,7 +208,7 @@ if __name__ == "__main__":
                                 converters={"GO_IDs": lambda x:  list(filter(None, x.split(",")))}) # if we don't filter there are no empty lists but lists with empty strings: [''] (its lenght is 1, not 0))
     #model_selection(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results)
     go_terms_list = args.go_terms.read().splitlines()
-    results = one_vs_rest_assessment(pp_matrix, "RandomForest", go_terms_list, resampling_size=5)
+    results = one_vs_rest_assessment(pp_matrix, go_terms_list, resampling_size=5)
     if args.ml_results:
         results.to_csv(args.ml_results, sep="\t", header=True, index=True)
 
