@@ -46,8 +46,7 @@ class ML():
 
     def __init__(self, phylogenetic_profile_matrix: pd.DataFrame):
         self.matrix_X = phylogenetic_profile_matrix.iloc[:, :-1] 
-        self.matrix_Y = phylogenetic_profile_matrix.iloc[:, -1]
-        self.one_hot_encoded_matrix_Y = pd.DataFrame(self.mlb.fit_transform(self.matrix_Y), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
+        self.matrix_Y = pd.DataFrame(self.mlb.fit_transform(phylogenetic_profile_matrix.iloc[:, -1]), columns=self.mlb.classes_, index=phylogenetic_profile_matrix.index)
         self.models_available = self.create_baseline_classifiers()
 
     @property
@@ -64,53 +63,49 @@ class ML():
 
     # From https://towardsdatascience.com/simple-way-to-find-a-suitable-algorithm-for-your-data-in-scikit-learn-python-9a9710c7c0fe
     @staticmethod
-    def create_baseline_classifiers(seed=8, cv=5):
+    def create_baseline_classifiers(seed=8, n_jobs=1):
         """Create a list of baseline classifiers.
         
-        Parameters
-        ----------
-        seed: (optional) An integer to set seed for reproducibility
-        Returns
-        -------
-        A list containing tuple of model's name and object.
+        Args:
+            seed (int, optional): an integer to set seed for reproducibility. Defaults to 8.
+            cv (int, optional): k-fold of the cross-validation. Needed to calculate the number of free cores to use in the parallelization.
+        Returns:
+            models (list): a list containing tuple of model's name and object.
         """
-        free_ncores = N_USABLE_CORES-cv if N_USABLE_CORES>cv else -2    # -2 means all cores available except 1
         models = {}
         # Inherently multilabel
         models['Dummy'] = DummyClassifier(random_state=seed, strategy='prior')
-        models['RandomForest'] = RandomForestClassifier(random_state=seed, n_jobs=1) # Random Forest consumes a lot of memory to be run in parallel
-        models['KNN'] = KNeighborsClassifier(n_jobs=free_ncores)
+        models['RandomForest'] = RandomForestClassifier(random_state=seed, n_jobs=1) # Random Forest consumes a lot of memory to be run in parallel, so better keep it with 1 core always
+        models['KNN'] = KNeighborsClassifier(n_jobs=n_jobs)
         models['NeuralNetwork'] = MLPClassifier(random_state=seed)
 
         # No support for multilabel unless using OneVSRestClassifier or ClassifierChain
-        models['SupportVectorMachine'] = OneVsRestClassifier(SVC(random_state=seed, probability=True), n_jobs=free_ncores)
-        models['GradientBoosting'] = OneVsRestClassifier(GradientBoostingClassifier(random_state=seed), n_jobs=free_ncores)
-        models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=free_ncores)
+        models['SupportVectorMachine'] = OneVsRestClassifier(SVC(random_state=seed, probability=True), n_jobs=n_jobs)
+        models['GradientBoosting'] = OneVsRestClassifier(GradientBoostingClassifier(random_state=seed), n_jobs=n_jobs)
+        models['MultinomialNB'] = OneVsRestClassifier(MultinomialNB(), n_jobs=n_jobs)
         return models
 
     def assess_all_labels(self, models: list, cv=5, metrics=("accuracy", "f1_macro")):
-        """Provide summary of cross validation results for models.
-        
-        Parameters
-        ----------
-        X: A pandas DataFrame containing feature matrix
-        y: A pandas Series containing target vector
-        models: A list of models to train
-        cv: (optional) An integer to set number of folds in cross-validation
-        metrics: (optional) A list of scoring metrics or a string for a metric
-        Returns
-        -------
-        A pandas DataFrame containing summary of baseline models' performance.
+        """ Assess all the labels together as a multilabel problem and provides a summary of the 
+        cross validation results for the requested models.
+
+        Args:
+            models (list): A list of models to train
+            cv (int, optional): An integer to set number of folds in cross-validation. Defaults to 5.
+            metrics (tuple, optional): A list of scoring metrics or a string for a metric. Defaults to ("accuracy", "f1_macro").
+
+        Returns:
+            summary (pd.DataFrame): a pandas DataFrame containing a summary of the models' performance in the requested metrics.
         """
         models_to_assess = {model_name:self.models_available[model_name] for model_name in models}
         logger.debug(f"The following models will be evaluated: {', '.join(models_to_assess)}")
         logger.debug(f"Shape of X training matrix: {self.matrix_X.shape}")
-        logger.debug(f"Shape of Y training matrix: {self.one_hot_encoded_matrix_Y.shape}")
+        logger.debug(f"Shape of Y training matrix: {self.matrix_Y.shape}")
         logger.info("Assessing models...")
         summary = pd.DataFrame()
         for name, model in models_to_assess.items():
             logger.info(f"Crossvalidating {name} model...")
-            result = pd.DataFrame(cross_validate(model, self.matrix_X, self.one_hot_encoded_matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
+            result = pd.DataFrame(cross_validate(model, self.matrix_X, self.matrix_Y, cv=cv, scoring=metrics, n_jobs=cv if N_USABLE_CORES>cv else 1))
             mean = result.mean().rename('{}_mean'.format)
             for m in metrics:
                 logger.debug(f"Mean {m}: {mean['test_'+m+'_mean']}")
@@ -119,19 +114,21 @@ class ML():
         return summary.sort_index()
 
     def assess_one_label(self, go_term: str, resampling: int, models: list, cv=5, metrics=("accuracy", "f1_macro", "roc_auc")):
-        """[summary]
+        """Assess only one label (binary classification problem), taking as many negative samples as positive sample (prevents class imbalance).
 
         Args:
-            model_name (str): [description]
-            go_term (str): [description]
-            resampling (int): [description]
+            go_term (str): label name.
+            resampling (int): number of times to resample (shuffle) the negative samples.
+            models (list): names of model to assess
+            cv (int, optional): K fold for Cross-Validation. Defaults to 5.
+            metrics (tuple, optional): evaluation metrics to return. Defaults to ("accuracy", "f1_macro", "roc_auc").
 
         Returns:
-            [type]: [description]
+            summary (pd.DataFrame): a pandas DataFrame containing a summary of the models' performance in the requested metrics.
         """
         models_to_assess = {model_name:self.models_available[model_name] for model_name in models}
-        positive_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 1].index
-        negative_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 0].index
+        positive_samples = self.matrix_Y[self.matrix_Y[go_term] == 1].index
+        negative_samples = self.matrix_Y[self.matrix_Y[go_term] == 0].index
         summary = pd.DataFrame()
         logging.info(f"Assessing GO term {go_term}...")
         for name, model in models_to_assess.items():
@@ -141,7 +138,7 @@ class ML():
                 negative_samples_subset = np.random.choice(negative_samples, size=len(positive_samples)) #NOTE: positive and negative sample must be of the same size to avoid class imbalance
                 training_samples = positive_samples.union(negative_samples_subset)
                 X_train = self.matrix_X.loc[training_samples.tolist(), :]
-                y_train = self.one_hot_encoded_matrix_Y.loc[training_samples.tolist(), go_term]
+                y_train = self.matrix_Y.loc[training_samples.tolist(), go_term]
                 results[i] = pd.DataFrame(cross_validate(model, X_train, y_train, cv=cv, scoring=metrics, n_jobs=-1)).mean()
             results_mean = results.mean(axis=1).rename('{}_mean'.format)
             results_std = results.std(axis=1).rename('{}_std'.format)
