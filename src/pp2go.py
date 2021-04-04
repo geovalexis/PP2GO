@@ -10,7 +10,7 @@ import numpy as np
 
 from phylogenetic_profiling import PhylogeneticProfiling
 from gene_ontology import GeneOntology, GO_Aspects, GO_EvidenceCodes
-from machine_learning import runML
+from machine_learning import model_selection, one_vs_rest_assessment
 from helpers.helper_functions import filterBySwissProt
 
 __author__ = "Geovanny Risco"
@@ -79,12 +79,14 @@ def main():
     
     
     try:
-        # Performe Machine Learning algorithm (if apply)
-        runML(pp_matrix, min=args.min_gos, max=args.max_gos, results_file=args.ml_results) 
+        # Performe Machine Learning algorithm
+        results = model_selection(pp_matrix, min=args.min_gos, max=args.max_gos) 
+        if args.results:
+            results.to_csv(args.ml_results, sep="\t", header=True, index=True)
     except:
         raise
     finally:
-        # Save PP matrix (if apply)
+        # Save PP matrix 
         if args.pp_matrix:
             pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
             pp_matrix.to_csv(args.pp_matrix, sep="\t", header=True, index=True)

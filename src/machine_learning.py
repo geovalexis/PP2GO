@@ -117,12 +117,6 @@ class ML():
             summary[name] = pd.concat([mean, std], axis=0)
         return summary.sort_index()
 
-    def train_model(self, model_name: str):
-        model = self.models_available.get(model_name)
-        if model: return model.fit()
-        else:
-            raise Exception("Specified model is not available")
-
     def one_vs_rest(self, model_name: str, go_term: str, resampling: int):
         model = self.models_available.get(model_name)
         positive_samples = self.one_hot_encoded_matrix_Y[self.one_hot_encoded_matrix_Y[go_term] == 1].index
@@ -140,7 +134,7 @@ class ML():
         return mean_results
 
 
-def model_selection(pp_matrix: pd.DataFrame, min: int = None, max: int = None, results_file: os.path = ""):
+def all_vs_all_assessment(pp_matrix: pd.DataFrame, min: int = None, max: int = None):
     #pp_matrix_training = pp_matrix[pp_matrix["GO_IDs"].str.len()>0] #the training dataset must all be labeled
     pp_matrix_training = pp_matrix
     pp_matrix_training_size_before = pp_matrix_training['GO_IDs'].explode().unique().size
@@ -164,8 +158,7 @@ def model_selection(pp_matrix: pd.DataFrame, min: int = None, max: int = None, r
     ml = ML(pp_matrix_training)
     assess_summary = ml.assess_models()
     logging.info(f"Assess summary:\n {assess_summary}")
-    if results_file:
-        assess_summary.to_csv(results_file, sep="\t", header=True, index=True)
+    return assess_summary
 
 def one_vs_rest_assessment(pp_matrix: pd.DataFrame, model_name: str, GO_terms: list, resampling_size: int = 1):
     pp_matrix_training = pp_matrix.loc[9606]
