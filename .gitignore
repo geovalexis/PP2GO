@@ -2,6 +2,7 @@
 QfO_release*
 **.gz
 **.logs
+logs/
 *.sh
 *.vscode
 bsc_cluster/
