@@ -3,11 +3,9 @@ import logging
 from typing import Dict
 import pandas as pd
 import numpy as np
-import aiohttp
-import asyncio
 import pdb
 import sys
-from joblib import Parallel, delayed, parallel
+from joblib import Parallel, delayed
 
 __author__ = "Geovanny Risco"
 __email__ = "geovanny.risco@bsc.es"
@@ -18,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 class PhylogeneticProfiling():
     """ 
-    It takes an orthologs dataset as input in the following format: uniprotid1 | uniprotid2 | uniprotid1_taxID | uniprot2_taxID. 
+    It takes an orthologs dataset as input in the following format: uniprotid1 | uniprotid2.
+    Then it maps the corresponding tax Id for each protein (see TaxaMapping class), obtaining a matrix with:  uniprotid1 | uniprotid2 | uniprotid1_taxID | uniprot2_taxID. 
     Both set of proteins are supposed to be interexchangable, so in this case the first set of uniprot IDs will act as proteome 
     dataset and the second as orthologs dataset. 
     """
@@ -30,8 +29,7 @@ class PhylogeneticProfiling():
         self._orthologs = self.mapAndfilterOrthologs(idmapping_file, orthologs, reference_species, onProteins, onSpecies)
 
     def mapAndfilterOrthologs(self, idmapping_file, orthologs, reference_species, onProteins, onSpecies):
-        """
-        Map taxIDs to the orthologs and filter dataset by the given reference species and proteins/species
+        """ Map taxIDs to the orthologs and filter dataset by the given reference species and proteins/species
         """
         taxd_orthologs = self.mapTaxIDs(idmapping_file, orthologs, onColumns=[self._proteome_column, self._reference_species_column], dropUnmatched=True) #TODO: Support for OrthoXML format
         self._species_availables = list(taxd_orthologs[f"{self._reference_species_column}_taxID"].unique()) #Save all species available in the dataset
@@ -73,12 +71,12 @@ class PhylogeneticProfiling():
 
     @staticmethod
     def mapTaxIDs(idmapping: os.path, df: pd.DataFrame, onColumns: list, dropUnmatched: bool = True):
-        """[summary]
+        """ Maps the taxIds for each uniprotId on the given columns of the dataframe.
 
         Args:
-            df (pd.DataFrame): [description]
-            onColumns (List[str]): [description]
-
+            df (pd.DataFrame): dataframe to map
+            onColumns (List[str]): columns of the dataframe where the uniprotids are
+            dropUnmatched (bool): whether drop o not those rows that did not have a match (no taxon assigned)
         Returns:
             df: same dataframe as passed in but with the taxIDs columns added with 
                 the following format <onColumn>_taxID
@@ -137,7 +135,7 @@ class PhylogeneticProfiling():
 class TaxaMapping():
 
     @staticmethod
-    def mapUniprot2Taxid_NCBI(uniprotIDs: set, prot_accession2taxid: os.path = "./data/prot.accession2QfOtaxid.gz") -> Dict:
+    def mapUniprot2Taxid_NCBI(uniprotIDs: set, prot_accession2taxid: os.path) -> Dict:
         """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
         Args:
             uniprotIDs (set): set of genes to translate
@@ -161,66 +159,26 @@ class TaxaMapping():
     @staticmethod
     def mapUniprot2Taxid_Uniprot(uniprotIDs: set, idmapping: os.path) -> Dict: 
         """ Translate a set of genes to its corresponding taxIDs given their uniprotKB accession numbers.
+
+        IMPORTANT:  This code will not work with the original `idmapping_selected_subset.tab.gz` file.
+                    See '1_Data_Retrieval' notebook, section 'Id mapping file', to learn how this idmapping 
+                    file was downloaded and then filtered in order to save memory and disk storage.
         Args:
             uniprotIDs (set): set of genes to translate
-            idmapping (os.path): path to the idmapping_selected.tab gzip compressed file 
+            idmapping (os.path): path to the idmapping_selected_filtered.tab gzip compressed file 
                                 from the official Uniprot ftp server.
                                 See ftp://ftp.ebi.ac.uk/pub/databases/uniprot/current_release/knowledgebase/idmapping/ 
         """    
         uniprot2taxid = pd.read_table(idmapping,
                                 compression="gzip", 
-                                names=["UniprotKB-AC", "GO", "NCBI-taxon"], #TODO: drop GO column
-                                usecols=["UniprotKB-AC", "NCBI-taxon"],
+                                names=["UniprotKB-AC", "GO", "NCBI-taxon"], 
+                                usecols=["UniprotKB-AC", "NCBI-taxon"], #NOTE: GO is assigned with the GAF file as it allows more filtering
                                 dtype={"UniprotKB-AC":"string", "NCBI-taxon": "int32"})
         uniprot2taxid = uniprot2taxid[uniprot2taxid["UniprotKB-AC"].isin(uniprotIDs)] 
         # Check if all the uniprotIDs have a corresponding taxID
         if (uniprot2taxid["UniprotKB-AC"].nunique() != len(uniprotIDs)):
             logger.warning(f"The tax IDs for {len(uniprotIDs)-uniprot2taxid['UniprotKB-AC'].nunique()} uniprotKB accession numbers couldn't be found.")
-            #logger.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique())))
+            #logger.debug(set.difference(uniprotIDs, set(uniprot2taxid["UniprotKB-AC"].unique()))) #NOTE: if the differences are too high the whole text can be annoying 
         return uniprot2taxid.set_index("UniprotKB-AC")["NCBI-taxon"].to_dict()
 
-
-    @classmethod
-    def mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(cls, uniprotIDs, chunk=200) -> Dict:
-        loop = asyncio.get_event_loop()
-        uniproid2taxid = loop.run_until_complete(cls.mapUniprotIDs2taxIDs_EBIRequest_multiprocessing(list(set(all_uniprotids))))
-        return uniproid2taxid
-
-    @classmethod
-    async def mapUniprotIDs2taxIDs_EBIRequest_parent_job(cls, uniprotIDs, chunk=200) -> Dict: # EBI limits requests to 200 requests/second/user
-        result = {}
-        async with aiohttp.ClientSession() as session:
-            if len(uniprotIDs)>chunk:
-                for i in range(0, len(uniprotIDs), chunk):
-                    step = i+chunk if (i+chunk) < len(uniprotIDs) else len(uniprotIDs)
-                    logger.info(f"{i} proteins already processed. Processing next batch...")
-                    res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session) for uniprotID in uniprotIDs[i:step]])
-                    for j in res_batch:
-                        result.update(j)
-                    #sleep(1)
-            else:
-                res_batch = await asyncio.gather(*[cls.map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session) for uniprotID in uniprotIDs])
-                for j in res_batch:
-                    result.update(j)
-        if (len(uniprotIDs) != len(result)):
-            logger.warning(f"The tax IDs for {len(uniprotIDs)-len(result.keys())} uniprotKB accession numbers couldn't be found.")
-            logger.debug(set.difference(set(uniprotIDs), result.keys()))
-        return result    
-    
-    @staticmethod
-    async def map_uniprotIDs2taxIDs_EBIRequest_job(uniprotID, session):
-        # Documentation in https://www.ebi.ac.uk/proteins/api/doc/
-        while True:
-            try:
-                requestURL = f"https://www.ebi.ac.uk/proteins/api/proteins/{uniprotID}"
-                response = await session.get(requestURL, headers={ "Accept" : "application/json"})
-                if response.ok: # status_code == 200
-                    return {uniprotID:(await response.json())["organism"]["taxonomy"]}
-                else:
-                    logger.debug(f"Protein {uniprotID} raised a {response.status} status code.") # It means that the protein couldn't be found or has been deleted.
-                    return {}
-            except aiohttp.ClientConnectionError as e:
-                logger.error(f"Raised a ClientConnectionError: {e.message}")
-                asyncio.sleep(0.1)
-                logger.info(f"Retrying protein {uniprotID}")
                 
