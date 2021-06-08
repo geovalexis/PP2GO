@@ -24,8 +24,8 @@ The main script of the pipeline is found at **src/pp2go.py**. For correctly run 
 
 The OBO file is also needed for the pipeline but it is already provided at **data/go.obo**. 
 
-## 3. Running file
-To run the pipeline is donde as follows:
+## 3. Running pipeline
+If using the default path of datasets, the pipeline is run as follows:
 ```bash
 python3 src/pp2go.py --orthologs orthologs/MtP_201912.tab 
 ```
