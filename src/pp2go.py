@@ -74,7 +74,6 @@ def main():
     goa.filterOutByQualifier("NOT") #NOTE: NOT qualifier indicates that the gene product does not have that relationship to the GO term
     goa.filterOutByEvidenceCodes(GO_EvidenceCodes.Experimental.value+GO_EvidenceCodes.AuthorStatements.value+["ISS", "RCA", "IC"]) #NOTE: All evidence codes except for those "electronically"  inferred
     if args.set_as_root: goa.setGOtermAsRoot(args.set_as_root)
-    # TODO: save proteins that are not really annotated -> in this case an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered)
     proteins2GOterms = goa.assignGOterms(pp_matrix.index.get_level_values(1), include_parents=args.include_go_parents, min_level=args.min_level, max_level=args.max_level) 
     pp_matrix["GO_IDs"] = pp_matrix.index.map(lambda x: proteins2GOterms.get(x[1], np.array([])))
     logging.info(f"Profiling matrix with GO terms...\n{pp_matrix}")
@@ -103,8 +102,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-#### TESTS ####
-#python src/pp2go.py --orthologs orthologs/MtP_201912.tab       # Mock dataset  (Very fast)
-#python pp2go.py python src/pp2go.py --orthologs orthologs/MtP_201601_blasted.tab     # Real dataset

@@ -88,7 +88,6 @@ class GeneOntology():
         goa_filteredByUniprotids = self.go_annotations[self.go_annotations["DB_Object_ID"].isin(uniprotids)]
         uniprotids2GOterms = goa_filteredByUniprotids.groupby("DB_Object_ID")["GO_ID"].apply(np.unique).to_dict()
         logger.debug(f"{len(uniprotids)-len(uniprotids2GOterms)} proteins were filtered out or were not annotated.")
-        #TODO: instead of taking all GO terms assigned, look for the deepest common ancestor between them: 
         # https://nbviewer.jupyter.org/urls/dessimozlab.github.io/go-handbook/GO%20Tutorial%20in%20Python%20-%20Solutions.ipynb
         if include_parents:
             uniprotids2GOterms = self.concatenateParents(uniprotids2GOterms)
@@ -100,7 +99,6 @@ class GeneOntology():
         return uniprotids2GOterms
     
     def findUnannotatedProteins(self):
-        #TODO: buscar todas aquellas proteinas que no tenga ninguna anotación. Esta función se tiene que llamar antes de filtrar el dataframe GOA
         raise NotImplementedError()
     
     def CutOffByMaxLevel(self,go_terms: list,  max_level: int) -> list:

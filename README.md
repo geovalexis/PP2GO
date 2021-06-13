@@ -87,4 +87,10 @@ python src/pp2go.py \
                         results.
   -v, --verbose         Verbose logging.
 ```
-
+## TODOs
+* Save proteins that are not really annotated -> in line 76 of ``pp2go.py`` an empty list does not mean that proteins is not annotated because it is not the original GAF dataset (it has been filtered).
+* Add support for [OrthoXML](https://www.orthoxml.org/xml/Main.html) format. This way the idmapping_file would not be needed and other orthology databases could be used (such as InParanoid or EnsemblCompara).
+* Instead of taking all GO terms assigned, look for the deepest common ancestor between them.
+* Complete ```findUnannotatedProteins()``` function in ```gene_ontology.py``` -> look for all unnonated proteins, independently of the filteres applied (this should be donde before all the filtering steps).
+* Split ML analysis into two different classes -> one for the AllVSAll analysis and the other with the OneVSRest.
+* Add support for datasets description (size of positive and negative datasets and more) to the OneVSRest analysis. 
