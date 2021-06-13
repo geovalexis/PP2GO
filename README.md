@@ -6,8 +6,8 @@ For more information about the methodology of this pipeline, please refer to the
 
 ## Repository tree
   *	**data/**: various data needed for the pipeline to run. They are not enough to run the pipeline. GitHub strictly limits the size of individual files to 100MB, so some files such as the GOA annotations or taxid_mapping could not be uploaded. These must be downloaded manually. See the instructions on 1_Data_Retrieval.ipynb.
-  *	**orthologs/**: folder with the orthologs datasets from different sources. As before, the size limitation does not allow us to upload the entire MetaPhOrs’ orthologs dataset but only a subset of it, which can be used for testing purposes. 
   *	**notebooks/**: jupyter notebooks (powered by Google Colab) used as a testing/debugging environment for the algorithms. It also includes the implementation of all the plots shown in the work as well as most of the data analysis performed to achieve the results. 
+  *	**orthologs/**: folder with the orthologs datasets from different sources. As before, the size limitation does not allow us to upload the entire MetaPhOrs’ orthologs dataset but only a subset of it, which can be used for testing purposes. 
   *	**src/**: source code of the pipeline used to test different filters and approaches. It was the code optimized to be run in the MareNostrum4. 
   *	**pp2go_env.yml**: pipeline’s package requirements to install with Anaconda. 
 
@@ -37,6 +37,7 @@ python src/pp2go.py \
   --max-gos 5000 \
   --pp-matrix ./results/MTP/MtP_201912-include_go_parents-min_gos_100-max_gos_5000-pp_matrix.tab  \
   --ml-results ./results/MTP/MtP_201912-include_go_parents-min_gos_100-max_gos_5000-ML_assessment.tab  \
+  -v \
 ```
 ## 4. Output files description
 * PP or Phylogenetic Profiling matrix: it consists of a tabular with the phylogenetic profiling matrix when all GO terms have been assigned and with all the specified filters applied (minimum/maximum number of GO terms, evidence codes, etc).
