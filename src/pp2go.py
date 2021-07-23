@@ -102,5 +102,9 @@ def main():
 def new_definition_ibai():
     pass
 
+def send_new_emojis():
+    #TODO
+    pass
+
 if __name__ == "__main__":
     main()
