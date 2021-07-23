@@ -99,6 +99,8 @@ def main():
             pp_matrix["GO_IDs"] = pp_matrix["GO_IDs"].apply(lambda x: ",".join(x))  # Before saving the dataframe we must reformat the lists
             pp_matrix.to_csv(args.pp_matrix, sep="\t", header=True, index=True)
 
+def new_definition_ibai():
+    pass
 
 if __name__ == "__main__":
     main()
